@@ -446,6 +446,54 @@
     return 1;
   }
 
+  // TG-026 problema 1+2 (20.09.2026, tableta Android cu Chrome 101.0.4951.61).
+  // `dvh` e din Chrome 108: pe 101 `height: 100dvh` e ignorat si ramane `100vh`,
+  // care pe Android e inaltimea viewportului MARE si nu se schimba nici cand
+  // bara de sistem se ascunde, nici la intrarea in ecran complet. Consecintele
+  // masurate de Cristian: tabla nu umplea inaltimea (3 randuri in picioare, 2
+  // culcat) si subsolul ramanea la mijlocul ecranului, desi `margin-top: auto`
+  // e pe el - pentru ca #ecran insusi nu avea inaltimea vizibila.
+  // `--vh-real` e inaltimea CHIAR vizibila, in pixeli: `visualViewport.height`
+  // (Chrome 61+, deci si pe 101) cand exista, altfel `window.innerHeight`.
+  // Pe un browser cu `dvh` valoarea asta nu se foloseste (cascada din
+  // css/style.css o pune INAINTEA randului cu `dvh`) - nimic nu se schimba
+  // unde deja merge.
+  // Intoarce `true` daca valoarea CHIAR s-a schimbat (apelantul reaseaza doar
+  // atunci, ca sa nu randeze degeaba).
+  function actualizeazaInaltimeaReala() {
+    if (typeof window === "undefined" || !document.documentElement ||
+        !document.documentElement.style) return false;
+    var vv = window.visualViewport;
+    var h = (vv && vv.height) || window.innerHeight || 0;
+    if (!h) return false;
+    var nou = Math.round(h) + "px";
+    var radacina = document.documentElement;
+    if (radacina.style.getPropertyValue("--vh-real") === nou) return false;
+    radacina.style.setProperty("--vh-real", nou); /* inaltimea vizibila reala, TG-026 */
+    return true;
+  }
+
+  // TG-026 problema 3: `.controale-fixe` e `position: fixed`, deci nu impinge
+  // nimic si acoperea mentiunea obligatorie din antet (masurat pe 768 latime:
+  // 233px de text acoperit). Antetul isi rezerva locul lor pe dreapta
+  // (`padding-right`, css/style.css .antet) - latimea se MASOARA, nu se scrie
+  // de mana, fiindca depinde de cat de lat e chip-ul de zoom (100%/70%...) si
+  // de fontul aparatului. Antetul e IN #ecran (scalat de `zoom`), controalele
+  // sunt in afara: latimea reala se imparte la factor ca sa ajunga in aceleasi
+  // unitati.
+  function actualizeazaLatimeaControalelor() {
+    if (typeof window === "undefined" || !document.documentElement ||
+        !document.documentElement.style) return;
+    var cont = document.getElementById("controaleFixe");
+    if (!cont || typeof cont.getBoundingClientRect !== "function") return;
+    var latime = cont.getBoundingClientRect().width;
+    if (!latime) return;
+    var factor = parseFloat(window.getComputedStyle(document.documentElement)
+      .getPropertyValue("--zoom-factor")) || 1;
+    document.documentElement.style.setProperty(
+      "--controale-latime", Math.ceil(latime / factor) + "px"); /* loc rezervat in antet, TG-026 */
+  }
+
   function aplicaZoom(factor) {
     factor = Math.round(Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, factor)) * 100) / 100;
     var ecran = document.getElementById("ecran");
@@ -463,6 +511,9 @@
     // schimba inaltimea/latimea randata) - sectiunile FARA subgrupe
     // (numarDeBareCareIncap, mai jos) trebuie recalculate, altfel ar ramane
     // cu numarul de bare calculat la factorul vechi.
+    // TG-026: locul rezervat controalelor in antet e in unitati de #ecran, deci
+    // depinde de factor - se recalculeaza la fiecare treapta de zoom.
+    actualizeazaLatimeaControalelor();
     randeazaTabla();
   }
 
@@ -1046,7 +1097,13 @@
     var n = document.getElementById("notaNativNota");
     if (!n) return;
     n.hidden = (LIMBA !== "nb");
+    // 🔴 Randul de mai jos e pazit CUVANT CU CUVANT de unelte/test_rw293_mentiune_nb.js
+    // (mentiunea norvegiana obligatorie) - nu se rescrie ca bloc; ce se adauga, se adauga
+    // pe randul lui, dedesubt.
     if (!n.hidden) n.textContent = TEXT_NOTA_NEVERIFICAT_NB;
+    // TG-026 problema 3: pe ecran ingust chip-ul se taie cu elipsa (css/style.css,
+    // .nota-nb-proba) - textul intreg ramane citibil de aici.
+    if (!n.hidden) n.title = TEXT_NOTA_NEVERIFICAT_NB; /* text intreg la taiere, TG-026 */
   }
 
   // ------------------------------------------------------------- randare
@@ -1629,6 +1686,10 @@
     });
     document.getElementById("an").textContent = new Date().getFullYear();
 
+    // TG-026 problema 1: inaltimea vizibila reala se pune ÎNAINTE de prima
+    // randare - altfel prima asezare se calculeaza pe `100vh` (gresit pe
+    // Android sub Chrome 108) si se corecteaza abia la primul eveniment.
+    actualizeazaInaltimeaReala();
 
     randeazaTot();
 
@@ -1636,6 +1697,10 @@
     // in DOM cu listenerul lui de mai sus) si aplica factorul salvat/implicit.
     creeazaControlZoom();
     aplicaZoom(citesteZoom());
+    // TG-026 problema 3: controalele exista abia acum - antetul isi poate
+    // rezerva locul lor (aplicaZoom de mai sus o face deja, randul asta e
+    // pentru cazul in care el ar iesi devreme).
+    actualizeazaLatimeaControalelor();
 
     // Sectiunile FARA subgrupe (Intrebari, Culori) isi recalculeaza numarul de
     // bare la redimensionare (plan, pas 1) - subgrupele (Obiecte, Persoane, ...)
@@ -1648,9 +1713,15 @@
     var INTARZIERI_REASEZARE_MS = [0, 150, 600];
     var ceasReasezare = [];
     function reasazaDupaSchimbareaFerestrei() {
+      // TG-026 problema 1: ÎNAINTE de orice masuratoare de asezare se pune la zi
+      // inaltimea vizibila reala (--vh-real) - pe Chrome 101 ea, nu `dvh`, da
+      // inaltimea lui #ecran. Altfel tabla s-ar recalcula pe inaltimea veche.
+      actualizeazaInaltimeaReala();
+      actualizeazaLatimeaControalelor();
       ceasReasezare.forEach(clearTimeout);
       ceasReasezare = INTARZIERI_REASEZARE_MS.map(function (ms) {
         return setTimeout(function () {
+          actualizeazaInaltimeaReala();
           randeazaTabla();
           randeazaBaraSectiuni();
         }, ms);
@@ -1664,6 +1735,14 @@
       licentaDetalii.addEventListener("toggle", reasazaDupaSchimbareaFerestrei);
     }
     window.addEventListener("resize", reasazaDupaSchimbareaFerestrei);
+    window.addEventListener("orientationchange", reasazaDupaSchimbareaFerestrei);
+    // TG-026 problema 1: pe Android, `visualViewport` semnaleaza schimbarea
+    // inaltimii VIZIBILE (bara de sistem care se ascunde/apare, tastatura) si
+    // acolo unde `window.resize` nu vine deloc - exact cazul in care `100vh`
+    // ramane neschimbat si asezarea ramanea pe inaltimea veche.
+    if (window.visualViewport && window.visualViewport.addEventListener) {
+      window.visualViewport.addEventListener("resize", reasazaDupaSchimbareaFerestrei); /* visualViewport, TG-026 */
+    }
     document.addEventListener("fullscreenchange", reasazaDupaSchimbareaFerestrei);
     document.addEventListener("webkitfullscreenchange", reasazaDupaSchimbareaFerestrei);
     // TG-026 punctul 1 (20.09.2026, capturi Cristian pe tableta Android, in

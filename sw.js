@@ -63,13 +63,75 @@ self.addEventListener("activate", function (eveniment) {
   );
 });
 
+// TG-026 problema 4 (20.09.2026, tableta Android, Chrome 101): FARA internet,
+// unele cuvinte din propozitie nu se auzeau din mp3 si cadeau pe rezerva
+// `speechSynthesis`; CU internet mergeau toate. Lista offline e completa (614
+// `.mp3` pe disc, 614 in `js/lista_offline.js`), deci fisierul ERA in cache.
+// Mecanismul: un element `<audio>` nu cere fisierul intreg — cere bucati, cu
+// antetul `Range: bytes=...`. `caches.match()` potriveste dupa URL si ignora
+// antetul, deci raspundea cu 200 si fisierul INTREG la o cerere partiala.
+// Un raspuns 200 la o cerere cu `Range` e in afara contractului HTTP: pipeline-ul
+// media al lui Chrome il refuza la unele fisiere, elementul arunca `error`, iar
+// `redaCuvant` (js/app.js) trece pe rezerva vorbita. CU internet nu se vedea,
+// fiindca reteaua raspunde corect cu 206.
+// Aici se construieste raspunsul 206 din chiar octetii din cache.
+function raspunsPartialDinCache(raspuns, antetRange) {
+  return raspuns.blob().then(function (blob) {
+    var total = blob.size;
+    var m = /^bytes=(\d*)-(\d*)$/.exec(String(antetRange).trim());
+    // un `Range` pe care nu stim sa-l taiem (mai multe intervale, unitate
+    // necunoscuta): raspundem ca pana acum, cu fisierul intreg — nu inrautatim.
+    if (!m || (m[1] === "" && m[2] === "")) return raspuns;
+    var start, sfarsit;
+    if (m[1] === "") {
+      var ultimii = parseInt(m[2], 10);
+      if (!(ultimii > 0)) return raspuns;
+      start = Math.max(0, total - ultimii);
+      sfarsit = total - 1;
+    } else {
+      start = parseInt(m[1], 10);
+      sfarsit = (m[2] === "") ? total - 1 : parseInt(m[2], 10);
+    }
+    if (!(start >= 0) || start >= total) {
+      return new Response("", {
+        status: 416,
+        statusText: "Range Not Satisfiable",
+        headers: { "Content-Range": "bytes */" + total }
+      });
+    }
+    if (!(sfarsit >= start) || sfarsit > total - 1) sfarsit = total - 1;
+    var felie = blob.slice(start, sfarsit + 1);
+    return new Response(felie, {
+      status: 206,
+      statusText: "Partial Content",
+      headers: {
+        "Content-Type": raspuns.headers.get("Content-Type") || blob.type || "application/octet-stream",
+        "Content-Range": "bytes " + start + "-" + sfarsit + "/" + total,
+        "Content-Length": String(felie.size),
+        "Accept-Ranges": "bytes"
+      }
+    });
+  });
+}
+
+// `ignoreSearch`: pagina cere `css/style.css?v=1`, `js/app.js?v=1`... (index.html),
+// dar in cache cheile sunt fara coada (`js/lista_offline.js` le listeaza asa) —
+// fara asta, fiecare fisier cu `?v=` rata cache-ul si, fara retea, primea 504.
+// `ignoreVary`: potrivirea se face dupa URL, nu dupa antetele cererii — altfel
+// cererea cu `Range` a elementului `<audio>` putea sa nu mai gaseasca intrarea.
+var OPTIUNI_POTRIVIRE = { ignoreSearch: true, ignoreVary: true };
+
 self.addEventListener("fetch", function (eveniment) {
   var cerere = eveniment.request;
   if (cerere.method !== "GET") return;
+  var antetRange = (cerere.headers && cerere.headers.get) ? cerere.headers.get("range") : null;
 
   eveniment.respondWith(
-    caches.match(cerere).then(function (raspunsDinCache) {
-      if (raspunsDinCache) return raspunsDinCache;
+    caches.match(cerere, OPTIUNI_POTRIVIRE).then(function (raspunsDinCache) {
+      if (raspunsDinCache) {
+        if (antetRange) return raspunsPartialDinCache(raspunsDinCache, antetRange);
+        return raspunsDinCache;
+      }
       return fetch(cerere).then(function (raspunsRetea) {
         return raspunsRetea;
       }).catch(function () {

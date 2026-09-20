@@ -103,6 +103,19 @@ html, body {
      după o înlocuiește acolo unde există (progressive enhancement, nu media
      query — un browser care nu recunoaște `100dvh` ignoră declarația). */
   height: 100vh;
+  /* TG-026 problema 1 (20.09.2026, tableta Android, Chrome 101): `dvh` e din
+     Chrome 108 — pe 101 declaratia de mai jos e IGNORATA si ramane `100vh`.
+     Pe Android `100vh` e inaltimea viewportului MARE (cu bara de sistem
+     ascunsa) si NU se schimba cand bara apare/dispare sau la intrarea in ecran
+     complet — de-aia asezarea ramanea calculata pe alta inaltime decat cea
+     vizibila, iar `ResizeObserver`-ul pus la prima runda TG-026 nu se mai
+     declansa niciodata (inaltimea lui #ecran, fiind in `vh`, nu se schimba).
+     `--vh-real` e pus de JS (actualizeazaInaltimeaReala, js/app.js) din
+     `visualViewport.height` / `window.innerHeight`, adica din inaltimea CHIAR
+     vizibila. Ordinea celor trei randuri e cascada: pe un browser cu `dvh`
+     castiga ultimul rand (nimic nu se schimba unde deja merge), pe Chrome 101
+     castiga randul cu `var()` (valid la parsare, deci nu cade pe `100vh`). */
+  height: var(--vh-real, 100vh); /* rezerva pentru Chrome sub 108, fara dvh (tableta), TG-026 */
   height: 100dvh;
   overflow: hidden;
 }
@@ -143,6 +156,7 @@ button {
      sectiuni (10 x 78px + 9 x 8px = 852px) incape in aceeasi latime. */
   max-width: var(--ecran-max-l); /* TG-026: formula e acum tokenul --ecran-max-l */
   height: 100vh;
+  height: calc(var(--vh-real, 100vh) / var(--zoom-factor)); /* rezerva pentru Chrome sub 108, fara dvh (tableta), TG-026 */
   height: calc(100dvh / var(--zoom-factor));
   overflow: hidden;
 }
@@ -361,6 +375,7 @@ body.fundal-tegn .nota-nb-proba {
   max-width: 520px;
   width: 100%;
   max-height: 90vh;
+  max-height: calc(var(--vh-real, 100vh) * 0.9); /* rezerva pentru Chrome sub 108, fara dvh (tableta), TG-026 */
   overflow-y: auto;
   box-shadow: var(--umbra);
 }
@@ -440,6 +455,7 @@ body.fundal-tegn .nota-nb-proba {
   max-width: 560px;
   width: 100%;
   max-height: 90vh;
+  max-height: calc(var(--vh-real, 100vh) * 0.9); /* rezerva pentru Chrome sub 108, fara dvh (tableta), TG-026 */
   overflow-y: auto;
   box-shadow: var(--umbra);
 }
@@ -555,6 +571,16 @@ body.fundal-tegn .nota-nb-proba {
   align-items: center;
   justify-content: space-between;
   padding: 10px 16px;
+  /* TG-026 problema 3 (20.09.2026, tableta): `.controale-fixe` (− 100% +,
+     steagul, ⚙) e `position: fixed` — iese din flux, deci NU impinge nimic si
+     acoperea mentiunea galbena obligatorie („text neverificat de vorbitor
+     nativ", RW-293). Masurat pe 768 latime: mentiunea se termina la x=726,
+     controalele incep la x=493 → 233px de text acoperit.
+     Antetul isi rezerva pe dreapta exact latimea lor, masurata in JS
+     (actualizeazaLatimeaControalelor, js/app.js) si impartita la factorul de
+     zoom, fiindca antetul e IN #ecran (scalat) iar controalele sunt in afara
+     lui. `0px` cand JS n-a apucat inca: antetul arata ca azi. */
+  padding-right: calc(16px + var(--controale-latime, 0px)); /* loc pentru controalele fixe, TG-026 */
   background: var(--card);
   box-shadow: var(--umbra);
   /* Corectura derulare: parte din „sus", nu se comprimă niciodată. */
@@ -606,6 +632,13 @@ body.fundal-tegn .nota-nb-proba {
   line-height: 1.2;
   color: #6b5730;
   text-align: center;
+  /* TG-026 problema 3: mentiunea e OBLIGATORIE (.claude/rules/norvegiana.md) —
+     nu se scoate si nu se ascunde. Cand locul ramas (antet minus titlu minus
+     locul rezervat controalelor) nu-i ajunge, se taie CURAT, cu elipsa, in loc
+     sa intre sub controale. Textul intreg ramane in `title` (js/app.js). */
+  white-space: nowrap; /* taiere curata cu elipsa, TG-026 */
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 /* RW-293b (12.09.2026): `hidden` de pe `#notaNativNota` functiona deja aici - blocul de
    deasupra nu declara niciun `display`, deci foaia implicita a browserului
