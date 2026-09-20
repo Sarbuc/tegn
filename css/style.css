@@ -1,0 +1,1005 @@
+:root {
+  /* TG-009 (19.09.2026): tokenurile de mai jos preiau paleta lui AIR
+     (`2. AIR/css/style.css`), aceleași NUME, ca un om să le recunoască pe
+     ambele aplicații-copil. Fundalul crem și titlul roz alese la construcție
+     au fost înlocuite. Culorile categoriilor Fitzgerald Key din
+     js/vocabular.js NU sunt tokenuri și nu se ating aici. */
+  --bg: #fff8ee;
+  --text: #2b2b2b;
+  --card: #ffffff;
+  --accent: #ff8c42;
+  --accent-dark: #a2501d;
+  --text-pe-accent: #fff8ee;
+  --bun: #4caf50;
+  --ales: #1b7934;
+  --stea: #ffc93c;
+  --umbra: 0 2px 6px rgba(0, 0, 0, 0.12);
+  --raza: 18px;
+  /* Corectura Cristian (19.09.2026 13:18/13:21, varianta B): rândul de cereri
+     rapide primește o culoare NOUĂ, doar a lui — roșu deschis „urgent" —, nu
+     culoarea categoriei (Fitzgerald Key).
+     TG-018 runda 2 (14:08): „mai aproape de roșu (nimic țipător)" — schimbat
+     din #ff8a80 (roz-somon) în #e57373 (roșu Material 300, plin dar stins).
+     Contrast text var(--text)/#e57373: 4,74:1 (peste pragul AA 4,5:1, calculat
+     — vezi predarea); text negru pe fond, NU alb (alb ar da doar 2,99:1).
+     Pictograma ramane pe alb (fond propriu al imaginii, neschimbat). */
+  --cerere-rapida: #e57373;
+  /* TG-018 runda 2 (14:08): "exact 3 icoane pe verticala" intr-o bara - o
+     singura sursa pentru inaltimea unui cartonaș si spatiul dintre ele,
+     folosita si de calculul `height: calc(...)` (css) si de scroll-snap
+     (fiecare pas = un cartonaș intreg, deci oprirea cade mereu pe un multiplu
+     al lui --bara-cartonas-h + --bara-gap). Masurata in browser la 1366x768/
+     800 si 400x800 - vezi predarea pentru cifrele reale. */
+  --bara-cartonas-h: 84px;
+  --bara-gap: 8px;
+  /* TG-019 corectura (19.09.2026, semnalata de lider): la zoom > 100%, spatiul
+     LOCAL disponibil pentru bare scade (#ecran are `height: calc(100dvh /
+     factor)`, deci mai putin spatiu local cu cat factorul creste), dar
+     inaltimea fixa "3 cartonase" nu se adapta - barele ies din #tabla/fereastra
+     (masurat de lider: 130%, bara jos 915px vs tabla jos 686px vs fereastra
+     768px). --bara-n e SINGURA sursa a numarului de cartonase intregi -
+     calculata in JS (calculeazaBaraN, js/app.js) dupa fiecare randare/zoom/
+     resize, din geometria REALA (susul .bara-verticala-continut, josul lui
+     #tabla minus padding), minim 1 - niciodata un cartonas taiat. Rezerva 3
+     (valoarea de dinainte de reparatie) e doar pentru primul paint, inainte
+     ca JS sa apuce sa calculeze. */
+  --bara-n: 3;
+
+  /* TG-019 (19.09.2026): tokenurile limbajului vizual AIR, NUME identice
+     (2. AIR/css/style.css:12,86,246-339) - citite, nu copiate cu valori
+     ghicite. --zoom-factor e pus/actualizat de JS (aplicaZoom, js/app.js) pe
+     document.documentElement, la fel ca in AIR; valoarea de-aici e doar
+     rezerva inainte de primul JS. --sticla-margine-plus ramane DERIVAT (calc),
+     niciodata scris de mana intr-o regula - vezi utilizarile mai jos. */
+  --zoom-factor: 1;
+  --card-rgb: 255, 255, 255;
+  --sticla-opacitate: 0.38;
+  --sticla-camp-opacitate: 0.62;
+  --sticla-estompare: 20px;
+  --sticla-margine-plus: 0.16;
+  --fundal-placa: rgba(24, 16, 8, 0.72);
+  /* Latimea unui buton de urgenta; din ea se deriva latimea panourilor (#ecran).
+     100px (nu 92): cele 8 urgente si cele 10 sectiuni umplu aceeasi latime. */
+  --urgenta-l: 100px;
+  --chip-fundal: rgba(255, 255, 255, 0.7);
+  --chip-fundal-hover: rgba(230, 230, 230, 0.9);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  /* TG-019: `background` NU mai sta aici, pe `html` - un fundal explicit pe
+     `html` caștiga propagarea pe canvas si ACOPERA `body.fundal-tegn::before`
+     (poza), masurat in browser (Chrome headless, capturi cu/fara acest rand):
+     cu fundalul si pe `html`, poza dispare complet sub var(--bg), desi
+     `::before` are z-index:-1 si e desenat corect; scos `html`-ul din regula,
+     pastrat DOAR pe `body` (mai jos), poza revine - acelasi mecanism ca in
+     AIR (2. AIR/css/style.css:914-923, unde `html` n-are niciodata
+     `background`). */
+  color: var(--text);
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  -webkit-user-select: none;
+  user-select: none;
+  /* Corectura Cristian (19.09.2026, derularea): partea de sus (antet, bandă,
+     ▶/⌫/🗑, cereri rapide, bara de secțiuni, rândul de grupuri) stă pe loc;
+     DOAR grila de pictograme se derulează, în cutia ei (.grid-pictograme,
+     mai jos). `height: 100vh` e rezerva pentru browsere fără `dvh`; regula de
+     după o înlocuiește acolo unde există (progressive enhancement, nu media
+     query — un browser care nu recunoaște `100dvh` ignoră declarația). */
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+body {
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  /* TG-019: #ecran e acum singurul copil direct (in flux) al lui body - centrat
+     pe orizontala, latime maxima 1400px, ca in AIR ("conținut centrat,
+     margini prin care se vede poza"). */
+  align-items: center;
+  position: relative;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+}
+
+/* ---------------------------------------------------------------- ecran */
+/* TG-019 (19.09.2026): containerul scalat de zoom (js/app.js, aplicaZoom,
+   `ecran.style.zoom` - NU transform, ca in AIR). Inaltimea REALA dupa
+   scalare trebuie sa ramana exact 100dvh, ca pagina sa nu se deruleze la nicio
+   treapta: H(interior) * factor = 100dvh => H = calc(100dvh / factor).
+   100vh e rezerva pentru browsere fara dvh (progressive enhancement, aceeasi
+   tehnica ca la html,body mai sus). */
+.tabla, #ecran { min-height: 0; }
+#ecran {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  /* Cristian, 19.09.2026 15:40 (captura): panourile se strang pana la latimea
+     celor 8 urgente si stau centrate pe poza. Latimea = 8 butoane + 7 goluri
+     + padding-ul panoului (2 x 16px) + marginea sticlei (2 x 1px) + marginile
+     panoului fata de #ecran (2 x 16px, masurat in browser). Bara de
+     sectiuni (10 x 78px + 9 x 8px = 852px) incape in aceeasi latime. */
+  max-width: calc(8 * var(--urgenta-l) + 7 * 8px + 34px + 32px);
+  height: 100vh;
+  height: calc(100dvh / var(--zoom-factor));
+  overflow: hidden;
+}
+
+/* ---------------------------------------------------- fundal + controale fixe */
+/* TG-019: poza de fundal, mecanism identic AIR (2. AIR/css/style.css
+   :500-531) - pseudo-element FIX pe body, z-index:-1, filtrat sub #ecran si sub
+   controalele fixe. Doar fundal_acasa.jpg acum (decizia lui Cristian, 14:48);
+   calea sta INTR-UN SINGUR loc, aici. */
+body.fundal-tegn::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background-image: url("../imagini_fundal/fundal_acasa.jpg");
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+  pointer-events: none;
+}
+
+/* Titlul "Tegn" pe placa opaca peste poza - nu direct pe fotografie (decizia
+   lui Cristian). Textul pe --fundal-placa (aproape negru, alfa 0.72) trebuie
+   deschis, nu var(--accent-dark) (facut pentru fondul deschis --card). */
+body.fundal-tegn .antet {
+  /* 16px pe laterale: aceeasi latime ca panourile de sticla de dedesubt. */
+  margin: 0 16px;
+  border-radius: 0 0 var(--raza) var(--raza);
+  background: var(--fundal-placa);
+  color: var(--text-pe-accent);
+}
+body.fundal-tegn .titlu { color: var(--text-pe-accent); }
+/* Cristian, 19.09.2026 15:40: "zona de licenta nu este lizibila" - gri #999
+   direct pe poza. Aceeasi placa opaca si acelasi text deschis ca la antet. */
+body.fundal-tegn .subsol {
+  background: var(--fundal-placa);
+  color: var(--text-pe-accent);
+  border-radius: var(--raza);
+  /* 16px pe laterale: aliniat cu panourile de sticla de deasupra. */
+  margin: 2px 16px;
+  font-size: 0.8rem;
+}
+/* <p> vine cu margini de 1em: umflau subsolul la 52px si scoteau o pictograma
+   intreaga din bare (masurat, 1440x744). */
+body.fundal-tegn .subsol .semnatura { margin: 0; }
+body.fundal-tegn .licenta-detalii summary,
+body.fundal-tegn .atribuire a { color: var(--text-pe-accent); font-size: 0.8rem; }
+body.fundal-tegn .nota-nb-proba {
+  background: rgba(255, 246, 224, 0.85);
+}
+
+/* TG-019: controlul de zoom (- % +) + chipul de limba, create/mutate de JS
+   (creeazaControlZoom, js/app.js) pe document.body, in AFARA #ecran - raman la
+   aceeasi marime reala, colt dreapta-sus, oglinda AIR
+   (2. AIR/css/style.css:1097-1133). */
+.controale-fixe {
+  position: fixed;
+  top: 8px;
+  right: 8px;
+  z-index: 35;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+/* TG-022: ecran complet - coltul din dreapta JOS, ca in AIR (Cristian,
+   19.09.2026 21:18). Butonul are 44x44 (tinta de atingere a Tegn-ului). */
+.ecran-complet-control {
+  position: fixed;
+  right: 8px;
+  bottom: 8px;
+  z-index: 35;
+  display: flex;
+  background: var(--chip-fundal);
+  border-radius: 999px;
+  padding: 3px;
+  box-shadow: var(--umbra);
+}
+.ecran-complet-buton {
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: #333;
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.ecran-complet-buton:hover { background: var(--chip-fundal-hover); }
+
+.zoom-control {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--chip-fundal);
+  border-radius: 999px;
+  padding: 3px 6px;
+  box-shadow: var(--umbra);
+}
+.zoom-buton {
+  /* TG-024: tinta de atingere >= 44x44 (masurat 30x30 la 400 px, 20.09.2026). */
+  width: 44px;
+  height: 44px;
+  min-width: 44px; /* zoom-buton, TG-024 */
+  min-height: 44px; /* zoom-buton, TG-024 */
+  border: none;
+  border-radius: 50%;
+  background: #d9d9d9;
+  color: #333;
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+.zoom-buton:hover { background: #c7c7c7; }
+.zoom-procent {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #555;
+  min-width: 34px;
+  text-align: center;
+}
+/* Butonul de limba, mutat de JS langa controlul de zoom: fond propriu (chip),
+   nu mai mosteneste .antet transparent - ramane >=44x44 (regula deja de la
+   TG-011, `.buton-limba`, mai jos). */
+.controale-fixe .buton-limba {
+  background: var(--chip-fundal);
+  box-shadow: var(--umbra);
+}
+.controale-fixe .buton-limba:hover { background: var(--chip-fundal-hover); }
+
+/* TG-016 (19.09.2026): ⚙ preferinte adult, acelasi stil de chip ca limba/zoom,
+   in aceeasi cutie .controale-fixe - nu acopera nimic din ce exista deja. */
+.buton-preferinte {
+  font-size: 1.4rem;
+  background: var(--chip-fundal);
+  box-shadow: var(--umbra);
+  padding: 8px 14px;
+  border-radius: var(--raza);
+  min-width: 44px;
+  min-height: 44px;
+  border: none;
+  cursor: pointer;
+  line-height: 1;
+}
+.buton-preferinte:hover { background: var(--chip-fundal-hover); }
+
+/* TG-016: ecranul de preferinte - fundal intunecat, panou centrat, scrolabil
+   pe telefon (400x800, cerinta "incape fara derularea paginii" se refera la
+   pagina din spate, nu la panoul insusi). */
+.ecran-preferinte {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.55);
+  overflow-y: auto;
+}
+.ecran-preferinte[hidden] { display: none; }
+.preferinte-panou {
+  background: #fff;
+  border-radius: var(--raza);
+  padding: 20px;
+  max-width: 520px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: var(--umbra);
+}
+.preferinte-titlu { margin: 0 0 12px; text-align: center; }
+.pref-sectiune { margin-bottom: 16px; }
+.pref-sectiune h3 { margin: 0 0 6px; font-size: 0.95rem; }
+/* TG-012: indicator text simplu, fara stare vizuala speciala - discret, cum cere criteriul. */
+.pref-offline-stare { margin: 0; font-size: 0.9rem; color: var(--text); }
+.pref-butoane { display: flex; flex-wrap: wrap; gap: 8px; }
+.pref-opt {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 8px 14px;
+  border-radius: var(--raza);
+  border: 2px solid transparent;
+  background: #eee;
+  cursor: pointer;
+  font-size: 0.95rem;
+}
+.pref-opt-activ { border-color: var(--accent, #2a7); background: #dff5e6; font-weight: 700; }
+.pref-opt:focus-visible, .buton-preferinte:focus-visible, .pref-gata:focus-visible {
+  outline: 3px solid #1a5fb4;
+  outline-offset: 2px;
+}
+.pref-grup-sectiune { margin-bottom: 10px; }
+.pref-grup-sectiune h4 { margin: 8px 0 4px; font-size: 0.88rem; color: #555; }
+.pref-grup { margin-bottom: 6px; }
+.pref-grup-nume { font-weight: 600; font-size: 0.82rem; color: #666; display: block; margin-bottom: 2px; }
+.pref-grup-cuvinte { display: flex; flex-wrap: wrap; gap: 6px; }
+/* TG-016 runda 2: "Nepublicate", IN INTERIORUL grupului - vizibil mai stearsa
+   decat cuvintele publicate (opacitate redusa + fundal neutru), ca sa nu se
+   confunde cu grupurile normale. */
+.pref-grup-scoase { margin: 4px 0 2px 8px; padding: 4px 6px; opacity: 0.6; background: #f0f0f0; border-radius: 6px; }
+.pref-grup-scoase .pref-grup-nume { color: #888; font-weight: 500; }
+.pref-btn-publica { font-size: 0.78rem; padding: 2px 6px; margin-left: 4px; cursor: pointer; }
+.pref-cuvant-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #f2f2f2;
+  border-radius: 999px;
+  padding: 4px 8px;
+  font-size: 0.82rem;
+}
+.pref-cuvant-chip select { min-height: 32px; }
+.pref-gata {
+  width: 100%;
+  min-height: 56px;
+  margin-top: 12px;
+  font-size: 1.1rem;
+  font-weight: 700;
+  border-radius: var(--raza);
+  border: none;
+  background: #dff5e6;
+  cursor: pointer;
+}
+
+/* TG-017 (19.09.2026): ecranul "Istoric", acelasi tipar ca .ecran-preferinte
+   (fundal intunecat, panou centrat, scrolabil pe telefon). */
+.ecran-istoric {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.55);
+  overflow-y: auto;
+}
+.ecran-istoric[hidden] { display: none; }
+.istoric-panou {
+  background: #fff;
+  border-radius: var(--raza);
+  padding: 20px;
+  max-width: 560px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: var(--umbra);
+}
+.istoric-titlu { margin: 0 0 6px; text-align: center; }
+.istoric-mentiune { margin: 0 0 14px; text-align: center; font-size: 0.85rem; color: #666; }
+.istoric-rezumat {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 16px;
+  padding: 10px;
+  background: #f7f7f7;
+  border-radius: var(--raza);
+}
+.istoric-rezumat > div { flex: 1 1 200px; }
+.istoric-rezumat h4 { margin: 0 0 4px; font-size: 0.82rem; color: #555; }
+.istoric-rezumat ol { margin: 0; padding-left: 20px; font-size: 0.85rem; }
+.istoric-rezumat-gol { margin: 0; font-size: 0.85rem; color: #999; }
+.istoric-gol { text-align: center; color: #777; }
+.istoric-sterge-tot, .istoric-sterge-zi {
+  min-height: 44px;
+  padding: 8px 14px;
+  border-radius: var(--raza);
+  border: 2px solid #c0392b;
+  background: #fff5f5;
+  color: #c0392b;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+.istoric-sterge-tot { width: 100%; margin-bottom: 12px; }
+.istoric-confirma {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px;
+  margin: 6px 0;
+  background: #fff0f0;
+  border-radius: var(--raza);
+  font-size: 0.85rem;
+}
+.istoric-da-sterge {
+  min-height: 44px;
+  padding: 8px 14px;
+  border-radius: var(--raza);
+  border: none;
+  background: #c0392b;
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+.istoric-anuleaza {
+  min-height: 44px;
+  padding: 8px 14px;
+  border-radius: var(--raza);
+  border: 2px solid #999;
+  background: #fff;
+  cursor: pointer;
+}
+.istoric-zi { margin-bottom: 14px; border-top: 1px solid #eee; padding-top: 8px; }
+.istoric-zi-antet {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.istoric-zi-data { font-weight: 700; }
+.istoric-rand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  border-bottom: 1px solid #f2f2f2;
+}
+.istoric-ora { font-size: 0.8rem; color: #666; min-width: 42px; }
+.istoric-propozitie { display: flex; flex-wrap: wrap; gap: 6px; }
+.istoric-cuvant {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: #f2f2f2;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 0.78rem;
+}
+.istoric-cuvant img { width: 22px; height: 22px; }
+.istoric-cuvant-necunoscut { color: #999; font-style: italic; background: #f7f7f7; }
+.pref-buton-istoric { min-width: 120px; }
+
+/* TG-016 punctul d: fantoma pictogramei tinuta sub degetul/cursorul care o
+   trage pana in banda (activeazaDragPictograma, js/app.js). */
+.drag-ghost {
+  position: fixed;
+  z-index: 60;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: #fff;
+  border-radius: 10px;
+  padding: 4px 8px;
+  box-shadow: var(--umbra);
+  font-size: 0.8rem;
+}
+.drag-ghost img { width: 40px; height: 40px; }
+
+/* ---------------------------------------------------------------- antet */
+
+.antet {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: var(--card);
+  box-shadow: var(--umbra);
+  /* Corectura derulare: parte din „sus", nu se comprimă niciodată. */
+  flex: 0 0 auto;
+}
+
+.titlu {
+  margin: 0;
+  font-size: 1.4rem;
+  font-weight: 700;
+  /* TG-009: titlul roz vechi -> var(--accent-dark) — var(--accent) direct pe
+     var(--card) dă 2,31:1 (sub pragul AA 4,5:1), --accent-dark dă 5,67:1. */
+  color: var(--accent-dark);
+}
+
+/* TG-011 (19.09.2026): mărimea vine din AIR (`.buton-mic`,
+   `2. AIR/css/style.css:1004` — padding 10px 18px, border-radius 16px,
+   `var(--raza)` aici e tokenul echivalent, deja pe brand din TG-009) — nu
+   forma (acolo e text „🇷🇴 Română ⇄ 🇳🇴 Bokmål", aici rămâne un singur steag,
+   ca să nu se lățească peste titlu pe ecranul îngust). Măsurat de lider pe
+   telefon (19.09 12:58): 47 × 42 px, sub ținta de atingere de 44 px pe
+   înălțime — motivul reparației. */
+.buton-limba {
+  font-size: 1.6rem;
+  background: none;
+  padding: 10px 18px;
+  border-radius: var(--raza);
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.buton-limba:hover { background: #f0f0f0; }
+
+/* RW-293 (12.09.2026, decizia lui Cristian): mențiunea „text neverificat de vorbitor
+   nativ" — vizibilă STRICT când LIMBA e nb (actualizeazaNotaNativa, js/app.js). Ocupă
+   spațiul rămas din `.antet` (flex, între titlu și butonul de limbă) — `flex:1` ca să
+   nu strice `justify-content: space-between` de pe rândul cu doar 2 elemente înainte. */
+.nota-nb-proba {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0 10px;
+  padding: 4px 10px;
+  background: #fff6e0;
+  border: 1px dashed #e0c98f;
+  border-radius: 999px;
+  font-size: .72rem;
+  line-height: 1.2;
+  color: #6b5730;
+  text-align: center;
+}
+/* RW-293b (12.09.2026): `hidden` de pe `#notaNativNota` functiona deja aici - blocul de
+   deasupra nu declara niciun `display`, deci foaia implicita a browserului
+   (`[hidden] { display: none }`) nu era batuta de nimic (masurat: `grep -c display` in
+   bloc -> 0). Regula de mai jos o face EXPLICITA, ca sa nu se mai poata pierde tacut:
+   mentiunea e un chip intr-un `.antet` flex, iar un `display` adaugat aici la o viitoare
+   retusare ar reintroduce exact defectul masurat pe Omsora (mentiunea vizibila in toate
+   limbile). Pazita de `unelte/test_rw293_mentiune_nb.js`. */
+.nota-nb-proba[hidden] { display: none; }
+
+/* ---------------------------------------------------------- banda zona */
+
+/* TG-018 runda 2 (14:08, "pe un singur rand, ca in PECS"): banda-zona era
+   coloana (banda sus, cele 3 butoane dedesubt); acum e un rand - banda ia tot
+   spatiul ramas (flex:1, se deruleaza orizontal daca propozitia e lunga),
+   butoanele stau langa ea, mereu vizibile. Padding-ul si `.banda`
+   `min-height` reduse (masurate in predare, cifrele reale din browser) ca sa
+   incapa pe laptop odata cu barele de 3 cartonase. */
+.banda-zona {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 16px;
+  background: var(--card);
+  border-bottom: 3px solid #eee;
+  flex: 0 0 auto;
+}
+
+.banda {
+  min-height: 72px;
+  height: 72px;
+  box-sizing: border-box;
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  /* bara de derulare ar manca din cei 72px; banda se deruleaza singura la
+     ultima pictograma (js/app.js, randeazaBanda) si cu degetul. */
+  scrollbar-width: none;
+  padding: 6px 4px;
+  border: 2px dashed #d9d0c0;
+  border-radius: var(--raza);
+  margin-bottom: 0;
+}
+
+/* 19.09.2026 17:50 (Cristian): sticla la jumatate (0.76 -> 0.38), sa se vada poza.
+   Campul propozitiei e singurul loc cu TEXT direct pe sticla (placeholder-ul) - isi
+   are un fond putin mai subtire (0.76 -> 0.62, nu la jumatate - Cristian 17:52), altfel contrastul cade sub 4,5:1 pe zonele
+   intunecate ale pozei (masurat: 2,35:1 la 0.38). */
+body.fundal-tegn .banda { background: rgba(var(--card-rgb), var(--sticla-camp-opacitate)); }
+
+.banda:empty::before {
+  /* TG-008 (13.09.2026): textul vine din TEGN_INTERFATA.placeholderBanda (js/vocabular.js),
+     scris de app.js in atributul data-placeholder-banda — nu mai statea RO, fara traducere,
+     direct in CSS. */
+  content: attr(data-placeholder-banda);
+  color: #2b2b2b;
+  font-size: 0.95rem;
+  padding: 0 8px;
+}
+
+.banda-item {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 76px;
+}
+/* Cristian, 19.09.2026 15:40: fereastra propozitiei are ACEEASI inaltime goala
+   si plina (masurat: plina crestea si impingea barele 64px in jos, o pictograma
+   iesea din panou). Pictograma 44px + un rand de text = 59px, sub cei 60px
+   liberi ai benzii (72px - 2 x 6px). */
+.banda-item img { width: 44px; height: 44px; object-fit: contain; }
+.banda-item span {
+  font-size: 0.75rem;
+  text-align: center;
+  line-height: 1.1;
+  margin-top: 2px;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.banda-actiuni {
+  display: flex;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.buton {
+  padding: 10px 14px;
+  border-radius: var(--raza);
+  font-size: 1.05rem;
+  font-weight: 600;
+  box-shadow: var(--umbra);
+  /* TG-018 runda 2: randul unic (banda + butoane) a strans padding-ul - tinta
+     de atingere ramane garantata explicit, nu doar dedusa din text+padding. */
+  min-height: 44px;
+}
+
+.buton-citeste {
+  /* TG-018 runda 2: banda-zona e acum un rand (nu mai are `flex:1` de coloana
+     veche); butonul isi pastreaza latimea dupa text, nu se mai intinde. */
+  flex: 0 0 auto;
+  /* TG-009: var(--bun) #4caf50 cu text alb dă doar 2,78:1 (sub AA); var(--ales)
+     (verde folosit deja la butoane în AIR) dă 5,48:1. */
+  background: var(--ales);
+  color: #fff;
+}
+.buton-citeste:active { transform: scale(0.98); }
+
+.buton-sterge, .buton-goleste {
+  background: #f2f2f2;
+  color: var(--text);
+  font-size: 1.3rem;
+  padding: 10px 14px;
+  /* TG-024: pe 400 px cosul iesea 43x48 - latimea minima garanteaza tinta. */
+  min-width: 44px;
+}
+
+/* ------------------------------------------------------ cereri rapide */
+/* TG-011 (19.09.2026): rand de 8 pictograme MARI, mereu vizibil, intre zona de
+   scriere si bara de sectiuni. O atingere reda audio-ul IMEDIAT (js/app.js,
+   randeazaCereriRapide) — nu adauga in banda. Pe 400 px: derulare orizontala,
+   ca bara de sectiuni de mai jos (deja verificata la TG-015 ca incape pe
+   telefon) — pastreaza pictogramele MARI (>=72 px), cerinta explicita,
+   in loc sa le stranga pe 2 randuri de 4 mai mici. */
+.cereri-rapide {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 8px 16px;
+  background: var(--card);
+  border-bottom: 3px solid #eee;
+  flex: 0 0 auto;
+}
+
+.cereri-rapide:empty { display: none; }
+
+.cerere-rapida-buton {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: var(--urgenta-l);
+  padding: 8px 6px 6px;
+  border-radius: var(--raza);
+  box-shadow: var(--umbra);
+  min-height: 118px;
+  /* Corectura Cristian (13:18/13:21, B): un singur token pentru toate 8,
+     NU culoarea categoriei — js/app.js nu mai trimite `el.culoare` pentru
+     cererile rapide, deci nimic nu bate regula asta cu un `style.background`
+     inline. */
+  background: var(--cerere-rapida);
+}
+.cerere-rapida-buton img {
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+  background: #fff;
+  border-radius: 12px;
+  padding: 4px;
+}
+.cerere-rapida-buton span {
+  margin-top: 6px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-align: center;
+  color: var(--text);
+  line-height: 1.15;
+}
+.cerere-rapida-buton:active { transform: scale(0.96); }
+
+/* ------------------------------------------------------- bara de sectiuni */
+/* TG-015 (19.09.2026): bara orizontala derulanta sub zona de scriere — Persoane,
+   Verbe, Ting, ... — fiecare buton e pictograma + cuvant.
+   TG-018 (19.09.2026): a DOUA aparitie a acestei clase (randul de grupuri Ting,
+   Mancare/Bauturi/...) A DISPARUT — fiecare grup e acum o bara verticala
+   proprie (.bara-verticala-nume, mai jos), toate vizibile deodata. Clasa
+   ramane folosita o SINGURA data acum (#baraSectiuni). */
+.bara-sectiuni {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  /* TG-021: golul lateral de 16px e BORDURA (transparenta), nu padding: ce se
+     deruleaza nu se deseneaza in bordura, deci niciun buton taiat in gol. */
+  padding: 8px 0;
+  border-left: 16px solid transparent;
+  border-right: 16px solid transparent;
+  background: var(--card);
+  border-bottom: 3px solid #eee;
+  flex: 0 0 auto;
+  /* TG-021 (19.09.2026): cu 12 butoane bara nu mai incape intr-un ecran ingust
+     - Cristian: "la scrol nu se vor vedea parti din icoane...doar icoane
+     intregi". Mecanismul: scroll-snap OPRESTE derularea exact pe marginea
+     unui buton (start), niciodata la jumatate - dimensiunile .sectiune-buton
+     (72px/6px gap) raman NESCHIMBATE (cerinta explicita). */
+  scroll-snap-type: x mandatory;
+  scrollbar-width: thin;
+}
+
+.bara-sectiuni:empty { display: none; }
+
+/* TG-018 runda 2 (14:11): fiecare buton de sectiune poarta culoarea
+   categoriei lui (Fitzgerald Key, js/vocabular.js), pusa de JS ca variabila
+   CSS `--culoare-sectiune` (randeazaBaraSectiuni, js/app.js) - NU o culoare
+   noua. Nealeasa: nuanta deschisa (`color-mix` 30% cu alb - contrast text
+   masurat >=10:1 pe toate cele 10, vezi predarea); aleasa: culoarea PLINA +
+   contur gros, ca sa se vada clar altfel decat prin verdele de dinainte.
+   Rezerva (linia dinaintea celei cu `color-mix`): #f2f2f2, pentru butoane
+   fara sectiune cunoscuta sau browsere fara `color-mix` (invalid la parsare,
+   deci ignorata - cascada pastreaza rezerva). */
+.sectiune-buton {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 72px;
+  padding: 6px 2px;
+  border-radius: var(--raza);
+  border: 3px solid transparent;
+  background: #f2f2f2;
+  background: color-mix(in srgb, var(--culoare-sectiune, #f2f2f2) 30%, white);
+  /* TG-021: fiecare buton se opreste EXACT aici la derulare (vezi scroll-snap-type
+     pe .bara-sectiuni mai sus) - "start" = marginea stanga a butonului cade pe
+     marginea vizibila, niciun buton nu ramane taiat pe jumatate. */
+  scroll-snap-align: start;
+}
+.sectiune-buton img { width: 40px; height: 40px; object-fit: contain; }
+.sectiune-buton span {
+  margin-top: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-align: center;
+  line-height: 1.1;
+  color: var(--text);
+}
+.sectiune-buton:active { transform: scale(0.96); }
+
+.sectiune-buton[aria-pressed="true"] {
+  background: #f2f2f2;
+  background: var(--culoare-sectiune, var(--ales));
+  border-color: var(--accent-dark);
+}
+
+/* --------------------------------------------------------------- tabla */
+/* TG-018 (19.09.2026, dosar/decizii/TG-018.md): tabla nu mai e o grila unica
+   care se deruleaza vertical (TG-011-corectura) — e un RAND de bare verticale,
+   una langa alta (cerinta lui Cristian, cu o captura PECS: "toate pictogramele
+   dintr-o selectie vor fi pe niste bare verticale ... la noi va fi rasturnat").
+   #tabla insusi se deruleaza pe ORIZONTALA doar daca barele nu incap (Obiecte,
+   care are mereu exact 5 bare fixe, cu nume); fiecare bara se deruleaza pe
+   VERTICALA, independent (.bara-verticala-continut, mai jos) - pagina intreaga
+   nu se mai deruleaza (mostenit neschimbat din corectura anterioara: body
+   height:100dvh + overflow:hidden). */
+.tabla {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: row;
+  /* TG-018 runda 2: barele au acum inaltime FIXA (exact 3 cartonase, mai jos)
+     - nu se mai intind pe toata inaltimea randului (`stretch`); pornesc din
+     partea de sus, ca in PECS. */
+  align-items: flex-start;
+  /* Cristian, 19.09.2026 17:59: panoul ia latimea coloanelor lui (1, 2, 3...)
+     si sta pe centrul ecranului, ca sa se vada fundalul pe laturi. Cand
+     coloanele nu incap, ramane lat cat ecranul si se deruleaza ca inainte. */
+  align-self: center;
+  width: fit-content;
+  max-width: calc(100% - 32px);
+  gap: 10px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding: 14px 16px 40px;
+}
+
+/* O bara verticala: latimea vine din JS (style.width = LATIME_MIN_BARA, SINGURA
+   sursa - vezi js/app.js), ca sa nu diveraga de la calculul numarului de bare.
+   TG-018 runda 2 (14:11): "sina" mosteneste culoarea sectiunii alese, in
+   nuanta deschisa (`--culoare-sectiune`, setata de JS pe acest element -
+   `.bara-verticala-nume`, copil, o mosteneste fara sa fie setata a doua
+   oara). Rezerva #f2f2f2 (linia dinainte de `color-mix`) pentru sectiuni fara
+   culoare cunoscuta sau browsere fara `color-mix`. */
+.bara-verticala {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  background: #f2f2f2;
+  background: color-mix(in srgb, var(--culoare-sectiune, #f2f2f2) 30%, white);
+  border-radius: var(--raza);
+  overflow: hidden;
+}
+
+.bara-verticala-nume {
+  flex: 0 0 auto;
+  padding: 8px 6px;
+  text-align: center;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text);
+  /* Antetul, o nuanta mai adanca decat sina (45% fata de 30%), ca sa se
+     distinga vizual de corpul barei - tot din --culoare-sectiune mostenita. */
+  background: rgba(0, 0, 0, 0.06);
+  background: color-mix(in srgb, var(--culoare-sectiune, rgba(0, 0, 0, 0.06)) 45%, white);
+  line-height: 1.15;
+}
+
+/* Cutia care CHIAR se deruleaza - una PE BARA, independenta de celelalte:
+   overscroll-behavior:contain opreste "scroll chaining" (derularea unei bare
+   la capat n-ar trebui sa deruleze pagina sau bara vecina).
+   TG-018 runda 2 (14:08, Cristian): "exact 3 icoane pe verticala ... daca
+   scrollul se opreste la jumatatea unei icoane automat se va opri si
+   autoregla pe 3 icoane intregi" - deci NU `flex:1` pe rest (inaltimea ar
+   varia cu ecranul), o inaltime FIXA de exact N cartonase + (N-1) spatii
+   intre ele (`--bara-cartonas-h`/`--bara-gap`, SINGURA sursa, :root), plus
+   `scroll-snap-type: y mandatory` care opreste derularea doar pe multipli
+   intregi ai pasului (cartonasul de mai jos are `scroll-snap-align: start`
+   si acelasi `--bara-cartonas-h` ca inaltime - pasul de oprire = inaltime +
+   gap, exact latimea unui "salt").
+   TG-019 corectura (19.09.2026): N nu mai e scris de mana (3) - e
+   `--bara-n`, calculat in JS (calculeazaBaraN, js/app.js) din spatiul LOCAL
+   real disponibil, la fiecare randare/zoom/resize - la 100% pe 1366x768
+   ramane 3 (neschimbat), la zoom mai mare scade ca sa nu iasa din #tabla. */
+.bara-verticala-continut {
+  flex: 0 0 auto;
+  height: calc(var(--bara-cartonas-h) * var(--bara-n) + var(--bara-gap) * (var(--bara-n) - 1));
+  display: flex;
+  flex-direction: column;
+  gap: var(--bara-gap);
+  padding: 0 8px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  scroll-snap-type: y mandatory;
+}
+
+.pictograma-buton {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 6px 6px 4px;
+  border-radius: var(--raza);
+  box-shadow: var(--umbra);
+  height: var(--bara-cartonas-h);
+  flex: 0 0 var(--bara-cartonas-h);
+  scroll-snap-align: start;
+}
+.pictograma-buton:active { transform: scale(0.96); }
+
+.pictograma-buton img {
+  /* TG-018 runda 2 (14:08): cartonasul DIN BARE se poate micsora ca sa incapa
+     exact 3 pe verticala (pictograma ramane >=56px, cerinta) - cele 8 cereri
+     rapide NU se ating (raman 72px, .cerere-rapida-buton img, mai sus). */
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+  background: #fff;
+  border-radius: 10px;
+  padding: 3px;
+}
+
+.pictograma-buton span {
+  margin-top: 2px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-align: center;
+  color: var(--text);
+  line-height: 1.05;
+}
+
+/* -------------------------------------------------------------- subsol */
+/* TG-018 (19.09.2026): subsolul (129px fix, mereu intins) manca din inaltimea
+   utila a barelor verticale pe 400px — atribuirea ARASAAC ramane in DOM
+   (obligatorie prin licenta BY-NC-SA) dar COLAPSATA sub <details>/<summary>
+   nativ (index.html); "omul ajunge la ea" atingand rezumatul, un tap, fara JS
+   de deschidere. Colapsat, subsolul are doar inaltimea rezumatului + semnatura
+   (masurate in predare); deschis, se intinde peste bare fara sa le strica -
+   #tabla ramane flex:1 1 auto si se subtiaza normal cand subsolul creste. */
+.subsol {
+  padding: 2px 16px 4px;
+  text-align: center;
+  font-size: 0.72rem;
+  color: #999;
+  flex: 0 0 auto;
+  /* TG-018 runda 2 (liderul, masurat 1366x768): "Licenta" si semnatura pe UN
+     rand - altfel subsolul taia 16 px din a treia pictograma a barelor. */
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0 16px;
+}
+
+.licenta-detalii { max-width: 640px; margin: 0; text-align: left; }
+.licenta-detalii[open] { flex-basis: 100%; margin: 0 auto; }
+.licenta-detalii summary {
+  cursor: pointer;
+  text-align: center;
+  list-style: none;
+  padding: 4px 8px;
+  color: #999;
+  font-size: 0.72rem;
+}
+.licenta-detalii summary::-webkit-details-marker { display: none; }
+.atribuire { max-width: 640px; margin: 6px auto 4px; }
+.atribuire a { color: #999; }
+
+/* ---------------------------------------------------- sticla (TG-019) */
+/* TG-019: panouri de sticla DOAR pe cereri-rapide/banda-zona/bara-sectiuni/
+   tabla, scopate pe body.fundal-tegn - --card NU se atinge (pictogramele,
+   sinele barelor, butoanele de sectiune si cele 8 urgente raman PLINE, cu
+   culorile de azi - nimic de aici le atinge). Rezerva OPACA (in afara
+   @supports) pentru ce nu are backdrop-filter: cele 3 panouri de sus deja
+   au `background: var(--card)` opac mai sus in fisier (nu se schimba), doar
+   .tabla nu avea niciun fundal propriu - primeste unul aici. */
+body.fundal-tegn .tabla {
+  background: var(--card);
+  border-radius: var(--raza);
+  margin: 0 16px 14px;
+  padding: 14px 16px 40px;
+}
+@supports ((backdrop-filter: blur(2px)) or (-webkit-backdrop-filter: blur(2px))) {
+  body.fundal-tegn .cereri-rapide,
+  body.fundal-tegn .banda-zona,
+  body.fundal-tegn .bara-sectiuni,
+  body.fundal-tegn .tabla {
+    background: rgba(var(--card-rgb), var(--sticla-opacitate));
+    border-bottom-color: transparent;
+    border: 1px solid rgba(var(--card-rgb), calc(var(--sticla-opacitate) + var(--sticla-margine-plus)));
+    -webkit-backdrop-filter: blur(var(--sticla-estompare)) saturate(1.25);
+    backdrop-filter: blur(var(--sticla-estompare)) saturate(1.25);
+    border-radius: var(--raza);
+  }
+  body.fundal-tegn .cereri-rapide,
+  body.fundal-tegn .banda-zona,
+  body.fundal-tegn .bara-sectiuni {
+    margin: 0 16px 10px;
+  }
+  /* TG-021: marginea laterala a barei de sectiuni e BORDURA, nu padding - un
+     buton derulat nu se deseneaza in bordura, deci nu apare taiat in gol. */
+  body.fundal-tegn .bara-sectiuni {
+    border-left: 16px solid transparent;
+    border-right: 16px solid transparent;
+  }
+}
+
+.semnatura {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  opacity: 0.7;
+}
+.logo-karagl { width: 20px; height: 20px; border-radius: 4px; }

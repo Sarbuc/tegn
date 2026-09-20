@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<!-- translate="no": pagina arata text norvegian intr-un document "ro" - fara asta,
+     browserul se ofera sa traduca automat si strica exact cuvintele pe care
+     copilul le foloseste ca sa comunice (acelasi motiv ca in AIR). -->
+<html lang="ro" translate="no" class="notranslate">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="color-scheme" content="light">
+  <meta name="google" content="notranslate">
+  <!-- Fara cache, ca la AIR: altfel un cuvant nou adaugat in vocabular nu se vede la redeschidere. -->
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <title>Tegn · KaraGL</title>
+  <link rel="icon" type="image/png" href="marca/favicon.png?v=1">
+  <link rel="apple-touch-icon" href="marca/icon_192.png?v=1">
+  <link rel="stylesheet" href="css/style.css?v=1">
+  <!-- TG-012: pagina instalabila (PWA), doar cand e servita prin https/localhost —
+       pe file:// sw-ul nu se inregistreaza, iar manifestul e refuzat de browser cu 2 erori
+       de consola fara urmari (masurat in Chrome, 19.09.2026); legatura ramane statica,
+       ca instalarea sa nu depinda de JS. -->
+  <link rel="manifest" href="manifest.webmanifest?v=1">
+  <meta name="theme-color" content="#ff8c42">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Tegn">
+</head>
+<body class="fundal-tegn">
+  <!-- TG-019 (19.09.2026, dosar/planuri/TG-019-aspect-ca-AIR-2026-09-19.md): tot
+       continutul intra in #ecran, containerul scalat de zoom (JS,
+       aplicaZoom/js/app.js, `ecran.style.zoom`, NU transform). Controlul de zoom
+       si chipul de limba stau ÎN AFARA lui, create/mutate de JS pe document.body,
+       ca sa ramana la aceeasi marime reala indiferent de factor. -->
+  <main id="ecran">
+    <header class="antet">
+      <h1 class="titlu">Tegn</h1>
+      <!-- RW-293 (12.09.2026, decizia lui Cristian): mențiunea „text neverificat de
+           vorbitor nativ" — vizibilă STRICT când LIMBA e nb, cât timp norvegiana casei
+           e în perioadă de probă (poarta care o închide: OMS-015). Text pus de JS
+           (actualizeazaNotaNativa, js/app.js), ACELAȘI la cuvânt cu cel de la Omsora
+           și AIR. -->
+      <p id="notaNativNota" class="nota-nb-proba" hidden></p>
+      <!-- TG-019: butonul e mutat de JS (creeazaControlZoom) langa controlul de
+           zoom, in afara lui #ecran - ramane in DOM aici doar ca sursa initiala. -->
+      <button id="butonLimba" class="buton-limba" type="button" aria-label="Schimba limba"></button>
+    </header>
+
+    <!-- TG-011 (19.09.2026): cereri rapide — 8 pictograme mari, o atingere reda
+         imediat audio-ul cuvantului (NU adauga in banda). Lista: js/app.js,
+         TEGN_CERERI_RAPIDE. Randat de randeazaCereriRapide().
+         TG-018 runda 2 (19.09.2026 14:08, Cristian): mutate DEASUPRA zonei de
+         propozitie (antet · cereri rapide · banda+actiuni · bara de sectiuni ·
+         bare) - comportamentul lor ramane neschimbat. -->
+    <nav id="cereriRapide" class="cereri-rapide" aria-label="Cereri rapide"></nav>
+
+    <!-- TG-018 runda 2 (14:08, "pe un singur rand, ca in PECS"): banda si cele
+         3 butoane (▶/⌫/🗑) stau acum pe UN rand (css/style.css .banda-zona),
+         nu banda sus + butoanele dedesubt - ca sa incapa pe laptop odata cu
+         barele de 3 cartonase (vezi predarea, masuratori 1366x768/800). -->
+    <section class="banda-zona" aria-label="Propozitia construita">
+      <div id="banda" class="banda"></div>
+      <div class="banda-actiuni">
+        <button id="butonCiteste" class="buton buton-citeste" type="button">▶ Citește</button>
+        <button id="butonSterge" class="buton buton-sterge" type="button" aria-label="Sterge ultima pictograma">⌫</button>
+        <button id="butonGoleste" class="buton buton-goleste" type="button" aria-label="Goleste propozitia">🗑</button>
+      </div>
+    </section>
+
+    <nav id="baraSectiuni" class="bara-sectiuni" aria-label="Sectiuni"></nav>
+
+    <div id="tabla" class="tabla" aria-label="Tabla de pictograme"></div>
+
+    <!-- TG-018 (19.09.2026): subsolul ARASAAC (fostele 129 px, mereu intinse pe
+         ecran) ar fi mancat din inaltimea barelor verticale — atribuirea RAMANE
+         in DOM, neschimbata la text (`.atribuire`, tradusa de JS ca azi), dar
+         colapsata sub <details>/<summary> nativ (fara JS de deschidere):
+         "omul ajunge la ea" atingand rezumatul (`#licentaRezumat`, tradus RO/NB
+         de actualizeazaTexteInterfata()) - un tap, ca la "▼" dintr-un acordeon.
+         Semnatura (logo + an) ramane vizibila, mereu, fara tap. -->
+    <footer class="subsol">
+      <details class="licenta-detalii">
+        <summary id="licentaRezumat"></summary>
+        <p class="atribuire">
+          Pictogramele folosite sunt proprietatea Guvernului Aragonului și au fost create de Sergio Palao
+          pentru <a href="https://arasaac.org" target="_blank" rel="noopener">ARASAAC</a>, care le distribuie
+          sub licență <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/deed.ro" target="_blank" rel="noopener">Creative Commons (BY-NC-SA)</a>.
+          Imaginile numerelor 40–100 nu sunt ARASAAC: sunt făcute de KaraGL.
+        </p>
+      </details>
+      <p class="semnatura">
+        <img src="marca/karagl.png?v=1" alt="" class="logo-karagl">
+        © <span id="an"></span> Cristian Sirbu
+      </p>
+    </footer>
+  </main>
+
+  <script src="js/config.js?v=1"></script>
+  <script src="js/vocabular.js?v=1"></script>
+  <script src="js/lista_offline.js?v=1"></script>
+  <script src="js/app.js?v=1"></script>
+  <!-- TG-012: inregistrarea service worker-ului sta AICI, nu in app.js, ca sa
+       ramana vizibila fara sa citesti tot fisierul si ca sa NU incerce nimic
+       pe file:// (protocolul e verificat inainte de orice apel la navigator.serviceWorker). -->
+  <script>
+    (function () {
+      "use strict";
+      var eLocal = location.hostname === "localhost" || location.hostname === "127.0.0.1";
+      var poateInstala = "serviceWorker" in navigator && (location.protocol === "https:" || eLocal);
+      window.TEGN_SW_SUPORTAT = poateInstala;
+      if (!poateInstala) return;
+      window.addEventListener("load", function () {
+        navigator.serviceWorker.register("sw.js").catch(function (eroare) {
+          try { console.warn("Tegn: inregistrare service worker esuata", eroare); } catch (e) {}
+        });
+      });
+    })();
+  </script>
+</body>
+</html>
