@@ -533,6 +533,27 @@
       "--controale-latime", Math.ceil(latime / factor) + "px"); /* loc rezervat in antet, TG-026 */
   }
 
+  // TG-029 (20.09.2026): `.ecran-complet-control` e `position: fixed`, coltul
+  // dreapta-jos - la fel ca antetul (comentariul de mai sus), subsolul isi
+  // rezerva pe dreapta locul lui MASURAT, nu o cifra scrisa de mana (aceeasi
+  // idee ca `actualizeazaLatimeaControalelor`, TG-026). Fara rezerva, cu
+  // licenta deschisa, grupul rezumat+semnatura centrat in subsol putea ajunge
+  // sa se termine exact sub buton - vazut pe tableta (liderul, 20.09.2026
+  // 15:31): "Sirbu" acoperit. #ecran e scalat de `zoom`, butonul nu - latimea
+  // reala se imparte la factor, la fel ca la controale-fixe.
+  function actualizeazaLatimeaEcranComplet() {
+    if (typeof window === "undefined" || !document.documentElement ||
+        !document.documentElement.style) return;
+    var cont = document.getElementById("ecranCompletControl");
+    if (!cont || typeof cont.getBoundingClientRect !== "function") return;
+    var latime = cont.getBoundingClientRect().width;
+    if (!latime) return;
+    var factor = parseFloat(window.getComputedStyle(document.documentElement)
+      .getPropertyValue("--zoom-factor")) || 1;
+    document.documentElement.style.setProperty(
+      "--ecran-complet-latime", Math.ceil(latime / factor) + "px"); /* loc rezervat in subsol, TG-029 */
+  }
+
   function aplicaZoom(factor) {
     factor = Math.round(Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, factor)) * 100) / 100;
     var ecran = document.getElementById("ecran");
@@ -553,6 +574,7 @@
     // TG-026: locul rezervat controalelor in antet e in unitati de #ecran, deci
     // depinde de factor - se recalculeaza la fiecare treapta de zoom.
     actualizeazaLatimeaControalelor();
+    actualizeazaLatimeaEcranComplet(); /* subsol, TG-029 */
     randeazaTabla();
   }
 
@@ -1821,6 +1843,7 @@
     // rezerva locul lor (aplicaZoom de mai sus o face deja, randul asta e
     // pentru cazul in care el ar iesi devreme).
     actualizeazaLatimeaControalelor();
+    actualizeazaLatimeaEcranComplet(); /* subsol, TG-029 */
 
     // TG-027: ecranul cu sigla se ascuta DUPA ce tabla e in forma ei finala
     // (dupa aplicaZoom(), care re-randeaza #tabla la factorul salvat) - altfel
@@ -1843,6 +1866,7 @@
       // inaltimea lui #ecran. Altfel tabla s-ar recalcula pe inaltimea veche.
       actualizeazaInaltimeaReala();
       actualizeazaLatimeaControalelor();
+      actualizeazaLatimeaEcranComplet(); /* subsol, TG-029 */
       ceasReasezare.forEach(clearTimeout);
       ceasReasezare = INTARZIERI_REASEZARE_MS.map(function (ms) {
         return setTimeout(function () {

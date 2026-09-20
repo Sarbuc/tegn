@@ -1144,6 +1144,16 @@ body.fundal-tegn .banda { background: rgba(var(--card-rgb), var(--sticla-camp-op
   align-items: center;
   justify-content: center;
   gap: 0 16px;
+  /* TG-029 (20.09.2026, masurat pe tableta de lider): dreapta subsolului cade
+     EXACT pe dreapta lui `.ecran-complet-control` (amandoua la marginea
+     placilor lui #ecran - vezi comentariile TG-026 de la `.controale-fixe`/
+     `.ecran-complet-control`), deci grupul centrat rezumat+semnatura putea
+     ajunge sa se termine sub buton cand licenta e deschisa (rezumat+atribuire
+     mult mai lat). Locul e MASURAT (actualizeazaLatimeaEcranComplet, js/app.js),
+     aceeasi idee ca rezerva antetului (--controale-latime, TG-026) - 50px
+     (44px buton + 2x3px padding) + 8px gol e rezerva pentru primul paint,
+     inainte ca JS sa apuce sa masoare. */
+  padding-right: calc(16px + var(--ecran-complet-latime, 50px) + 8px); /* subsol, TG-029 */
 }
 
 .licenta-detalii { max-width: 640px; margin: 0; text-align: left; }
