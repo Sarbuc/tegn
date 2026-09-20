@@ -26,24 +26,106 @@ function loturi(lista, marime) {
   return rezultat;
 }
 
+// 🔴 TG-026 runda 3, problema 2 (masurat de lider pe tableta reala, 20.09.2026):
+// un singur cache `tegn-offline-1f1e505e14d8` cu 719 din 921 de intrari, 22 de
+// pictograme rupte pe ecran, 0 din 22 gasite cu `caches.match` (nici cu
+// ignoreSearch/ignoreVary). Cauza: `activate` stergea TOATE cache-urile vechi pe
+// loc, iar umplerea celui nou (loturi de 40) continua DUPA aceea; Cristian a
+// trecut pe modul avion in mijlocul descarcarii -> singura copie completa
+// (cea veche) fusese deja stearsa.
+//
+// Regula acum:
+//   1. cache-ul vechi se sterge DOAR cand cel nou are TOATE fisierele din lista;
+//   2. pana atunci, `fetch` cauta in cel nou INTAI, apoi in cele vechi;
+//   3. la urmatoarea pornire cu retea, umplerea se RELUA de unde a ramas
+//      (doar fisierele lipsa), nu de la zero si fara „gata" fals.
+// „Complet" nu e un steag scris undeva (un steag poate minti dupa o stergere de
+// spatiu): se MASOARA, comparand cheile din cache cu lista.
+
+// Cheile din cache sunt URL-uri absolute (`baza + cale`); lista are cai relative.
+function bazaScope() {
+  try {
+    if (self.registration && self.registration.scope) return self.registration.scope;
+  } catch (e) {}
+  try {
+    if (self.location && self.location.href) return self.location.href.replace(/[^\/]*$/, "");
+  } catch (e) {}
+  return "";
+}
+
+function caiLipsa(chei) {
+  var baza = bazaScope();
+  var prezente = {};
+  chei.forEach(function (cheie) {
+    var url = String((cheie && cheie.url) || cheie).split("?")[0];
+    if (baza && url.indexOf(baza) === 0) url = url.slice(baza.length);
+    prezente[url] = true;
+  });
+  return FISIERE.filter(function (cale) { return !prezente[cale]; });
+}
+
+// RELUARE: se cer doar fisierele care lipsesc, nu toata lista.
+function umple(cache) {
+  return cache.keys().then(function (chei) {
+    var seturi = loturi(caiLipsa(chei), MARIME_LOT);
+    // un lot care pica (fisier lipsa, retea intrerupta) nu opreste restul —
+    // se raporteaza in consola, nu arunca exceptia mai departe.
+    return seturi.reduce(function (promisiune, lot) {
+      return promisiune.then(function () {
+        return Promise.all(
+          lot.map(function (cale) {
+            return cache.add(cale).catch(function (eroare) {
+              try { console.warn("Tegn sw: nu am putut pune in cache", cale, eroare); } catch (e) {}
+            });
+          })
+        );
+      });
+    }, Promise.resolve());
+  });
+}
+
+function esteComplet(cache) {
+  return cache.keys().then(function (chei) { return caiLipsa(chei).length === 0; });
+}
+
+// Sterge cache-urile vechi DOAR daca cel nou e complet. Intoarce `true` daca a sters.
+function stergeCacheurileVechiDacaSuntemCompleti() {
+  return caches.open(NUME_CACHE).then(esteComplet).then(function (complet) {
+    if (!complet) return false;
+    return caches.keys().then(function (nume) {
+      return Promise.all(
+        nume
+          .filter(function (n) { return n.indexOf("tegn-offline-") === 0 && n !== NUME_CACHE; })
+          .map(function (n) { return caches.delete(n); })
+      );
+    }).then(function () { return true; });
+  });
+}
+
+function umpleSiCurata() {
+  return caches.open(NUME_CACHE)
+    .then(umple)
+    .then(stergeCacheurileVechiDacaSuntemCompleti);
+}
+
+// O singura reluare per pornire de service worker (worker-ul e oprit si repornit
+// des de sistem; `install`/`activate` ruleaza o singura data per versiune).
+var umplereInCurs = null;
+function reiaUmplerea() {
+  if (!umplereInCurs) {
+    umplereInCurs = umpleSiCurata().catch(function (eroare) {
+      try { console.warn("Tegn sw: reluarea umplerii a picat", eroare); } catch (e) {}
+      umplereInCurs = null;   // fara retea acum -> se mai incearca o data mai tarziu
+      return false;
+    });
+  }
+  return umplereInCurs;
+}
+self.TEGN_SW_RELUARE = reiaUmplerea;   // punct de prindere pentru probe
+
 self.addEventListener("install", function (eveniment) {
   eveniment.waitUntil(
-    caches.open(NUME_CACHE).then(function (cache) {
-      var seturi = loturi(FISIERE, MARIME_LOT);
-      // un lot care pica (fisier lipsa, retea intrerupta) nu opreste restul —
-      // se raporteaza in consola, nu arunca exceptia mai departe.
-      return seturi.reduce(function (promisiune, lot) {
-        return promisiune.then(function () {
-          return Promise.all(
-            lot.map(function (cale) {
-              return cache.add(cale).catch(function (eroare) {
-                try { console.warn("Tegn sw: nu am putut pune in cache", cale, eroare); } catch (e) {}
-              });
-            })
-          );
-        });
-      }, Promise.resolve());
-    }).then(function () {
+    umpleSiCurata().then(function () {
       return self.skipWaiting();
     })
   );
@@ -51,13 +133,7 @@ self.addEventListener("install", function (eveniment) {
 
 self.addEventListener("activate", function (eveniment) {
   eveniment.waitUntil(
-    caches.keys().then(function (nume) {
-      return Promise.all(
-        nume
-          .filter(function (n) { return n.indexOf("tegn-offline-") === 0 && n !== NUME_CACHE; })
-          .map(function (n) { return caches.delete(n); })
-      );
-    }).then(function () {
+    stergeCacheurileVechiDacaSuntemCompleti().then(function () {
       return self.clients.claim();
     })
   );
@@ -121,13 +197,35 @@ function raspunsPartialDinCache(raspuns, antetRange) {
 // cererea cu `Range` a elementului `<audio>` putea sa nu mai gaseasca intrarea.
 var OPTIUNI_POTRIVIRE = { ignoreSearch: true, ignoreVary: true };
 
+// TG-026 runda 3: ORDINEA conteaza. `caches.match()` global cauta in TOATE
+// cache-urile, dar in ordinea crearii — adica cel VECHI primul, deci ar servi
+// cod vechi cat timp cele doua coexista. Aici: cel nou INTAI, cele vechi ca
+// rezerva (acolo stau fisierele pe care cel nou nu le-a apucat inca).
+function cautaInCacheuri(cerere) {
+  var inCelNou;
+  try {
+    inCelNou = caches.open(NUME_CACHE).then(function (cache) {
+      return cache.match(cerere, OPTIUNI_POTRIVIRE);
+    });
+  } catch (e) {
+    inCelNou = Promise.resolve(undefined);
+  }
+  return Promise.resolve(inCelNou).catch(function () { return undefined; }).then(function (r) {
+    if (r) return r;
+    return caches.match(cerere, OPTIUNI_POTRIVIRE);
+  });
+}
+
 self.addEventListener("fetch", function (eveniment) {
   var cerere = eveniment.request;
   if (cerere.method !== "GET") return;
   var antetRange = (cerere.headers && cerere.headers.get) ? cerere.headers.get("range") : null;
 
+  // reluarea umplerii la prima cerere de dupa pornirea worker-ului (vezi 🔴 mai sus)
+  try { eveniment.waitUntil(reiaUmplerea()); } catch (e) {}
+
   eveniment.respondWith(
-    caches.match(cerere, OPTIUNI_POTRIVIRE).then(function (raspunsDinCache) {
+    cautaInCacheuri(cerere).then(function (raspunsDinCache) {
       if (raspunsDinCache) {
         if (antetRange) return raspunsPartialDinCache(raspunsDinCache, antetRange);
         return raspunsDinCache;

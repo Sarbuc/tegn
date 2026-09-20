@@ -104,20 +104,40 @@ html, body {
      query — un browser care nu recunoaște `100dvh` ignoră declarația). */
   height: 100vh;
   /* TG-026 problema 1 (20.09.2026, tableta Android, Chrome 101): `dvh` e din
-     Chrome 108 — pe 101 declaratia de mai jos e IGNORATA si ramane `100vh`.
-     Pe Android `100vh` e inaltimea viewportului MARE (cu bara de sistem
-     ascunsa) si NU se schimba cand bara apare/dispare sau la intrarea in ecran
-     complet — de-aia asezarea ramanea calculata pe alta inaltime decat cea
+     Chrome 108. Pe Android `100vh` e inaltimea viewportului MARE (cu bara de
+     sistem ascunsa) si NU se schimba cand bara apare/dispare sau la intrarea in
+     ecran complet — de-aia asezarea ramanea calculata pe alta inaltime decat cea
      vizibila, iar `ResizeObserver`-ul pus la prima runda TG-026 nu se mai
      declansa niciodata (inaltimea lui #ecran, fiind in `vh`, nu se schimba).
      `--vh-real` e pus de JS (actualizeazaInaltimeaReala, js/app.js) din
      `visualViewport.height` / `window.innerHeight`, adica din inaltimea CHIAR
-     vizibila. Ordinea celor trei randuri e cascada: pe un browser cu `dvh`
-     castiga ultimul rand (nimic nu se schimba unde deja merge), pe Chrome 101
-     castiga randul cu `var()` (valid la parsare, deci nu cade pe `100vh`). */
-  height: var(--vh-real, 100vh); /* rezerva pentru Chrome sub 108, fara dvh (tableta), TG-026 */
-  height: 100dvh;
+     vizibila. Randul cu `dvh` sta in `@supports`-ul de mai jos, NU aici — vezi
+     comentariul lui 🔴, runda 3. */
+  height: var(--vh-real, 100vh); /* inaltimea CHIAR vizibila, TG-026 */
   overflow: hidden;
+}
+
+/* 🔴 TG-026 runda 3 (20.09.2026, MASURAT pe tableta reala de lider, prin adb +
+   DevTools): CASCADA NU E O REZERVA CAND DECLARATIA CONTINE `var()`.
+   O declaratie care contine `var()` e VALIDA la parsare orice ar mai contine —
+   browserul nu se uita inauntru. Devine invalida abia la CALCUL ("invalid at
+   computed-value time"), iar atunci proprietatea NU cade pe declaratia de
+   deasupra, ci pe valoarea ei initiala/mostenita.
+   Dovada de pe aparat: `document.styleSheets` pe tableta arata `#ecran { ...
+   height: calc(100dvh / var(--zoom-factor)) }` — declaratia era ACOLO, pastrata,
+   nu aruncata. Rezultatul: innerHeight=744, --vh-real='744px', html/body=744,
+   dar #ecran=658 (cazut pe `auto`), tabla 236px, subsolul la 656.
+   `html, body { height: 100dvh }` mergea, fiindca acolo NU era niciun `var()`:
+   declaratia chiar se arunca la parsare si ramanea randul de deasupra.
+   REGULA, de-acum: orice declaratie care combina o unitate/functie noua
+   (`dvh`/`svh`/`lvh`, `color-mix`, ...) CU `var()` sta intr-un `@supports`;
+   in afara lui ramane varianta care merge peste tot. Pazita de
+   `unelte/test_tg026_runda3_supports.py`. */
+   🔴 Fiecare `@supports` sta IMEDIAT DUPA regula pe care o completeaza: la
+   specificitate egala castiga ce vine mai tarziu in fisier, deci un `@supports`
+   pus inainte ar fi fost sters tacut de regula de baza. */
+@supports (height: 100dvh) {
+  html, body { height: 100dvh; }
 }
 
 body {
@@ -156,9 +176,14 @@ button {
      sectiuni (10 x 78px + 9 x 8px = 852px) incape in aceeasi latime. */
   max-width: var(--ecran-max-l); /* TG-026: formula e acum tokenul --ecran-max-l */
   height: 100vh;
-  height: calc(var(--vh-real, 100vh) / var(--zoom-factor)); /* rezerva pentru Chrome sub 108, fara dvh (tableta), TG-026 */
-  height: calc(100dvh / var(--zoom-factor));
+  height: calc(var(--vh-real, 100vh) / var(--zoom-factor)); /* inaltimea CHIAR vizibila, TG-026 */
   overflow: hidden;
+}
+/* TG-026 runda 3: randul cu `dvh` (care contine SI `var(--zoom-factor)`) nu mai
+   are voie sa stea in regula de sus — vezi comentariul 🔴 de la `html, body`.
+   Aici, DUPA regula de baza, ca sa o bata la specificitate egala. */
+@supports (height: 100dvh) {
+  #ecran { height: calc(100dvh / var(--zoom-factor)); }
 }
 
 /* ---------------------------------------------------- fundal + controale fixe */
@@ -868,9 +893,12 @@ body.fundal-tegn .banda { background: rgba(var(--card-rgb), var(--sticla-camp-op
    noua. Nealeasa: nuanta deschisa (`color-mix` 30% cu alb - contrast text
    masurat >=10:1 pe toate cele 10, vezi predarea); aleasa: culoarea PLINA +
    contur gros, ca sa se vada clar altfel decat prin verdele de dinainte.
-   Rezerva (linia dinaintea celei cu `color-mix`): #f2f2f2, pentru butoane
-   fara sectiune cunoscuta sau browsere fara `color-mix` (invalid la parsare,
-   deci ignorata - cascada pastreaza rezerva). */
+   🔴 TG-026 runda 3: comentariul de aici spunea „invalid la parsare, deci
+   ignorata - cascada pastreaza rezerva". E FALS, si a costat: declaratia
+   contine `var(--culoare-sectiune)`, deci pe Chrome 101 e valida la parsare si
+   pastrata, iar la calcul cade pe valoarea INITIALA a lui `background`
+   (transparent) — nu pe `#f2f2f2` de deasupra. Acelasi mecanism ca `dvh`-ul de
+   la `#ecran`. Mutata in `@supports`, imediat DUPA regula. */
 .sectiune-buton {
   flex: 0 0 auto;
   display: flex;
@@ -881,11 +909,15 @@ body.fundal-tegn .banda { background: rgba(var(--card-rgb), var(--sticla-camp-op
   border-radius: var(--raza);
   border: 3px solid transparent;
   background: #f2f2f2;
-  background: color-mix(in srgb, var(--culoare-sectiune, #f2f2f2) 30%, white);
   /* TG-021: fiecare buton se opreste EXACT aici la derulare (vezi scroll-snap-type
      pe .bara-sectiuni mai sus) - "start" = marginea stanga a butonului cade pe
      marginea vizibila, niciun buton nu ramane taiat pe jumatate. */
   scroll-snap-align: start;
+}
+@supports (color: color-mix(in srgb, red, blue)) {
+  .sectiune-buton {
+    background: color-mix(in srgb, var(--culoare-sectiune, #f2f2f2) 30%, white);
+  }
 }
 .sectiune-buton img { width: 40px; height: 40px; object-fit: contain; }
 .sectiune-buton span {
@@ -941,14 +973,14 @@ body.fundal-tegn .banda { background: rgba(var(--card-rgb), var(--sticla-camp-op
    TG-018 runda 2 (14:11): "sina" mosteneste culoarea sectiunii alese, in
    nuanta deschisa (`--culoare-sectiune`, setata de JS pe acest element -
    `.bara-verticala-nume`, copil, o mosteneste fara sa fie setata a doua
-   oara). Rezerva #f2f2f2 (linia dinainte de `color-mix`) pentru sectiuni fara
-   culoare cunoscuta sau browsere fara `color-mix`. */
+   oara). Rezerva #f2f2f2 pentru sectiuni fara culoare cunoscuta sau browsere
+   fara `color-mix`; nuanta sta in `@supports`-ul de dupa regula — vezi
+   comentariul 🔴 de la `html, body` (TG-026 runda 3). */
 .bara-verticala {
   flex: 0 0 auto;
   display: flex;
   flex-direction: column;
   background: #f2f2f2;
-  background: color-mix(in srgb, var(--culoare-sectiune, #f2f2f2) 30%, white);
   border-radius: var(--raza);
   overflow: hidden;
 }
@@ -963,8 +995,15 @@ body.fundal-tegn .banda { background: rgba(var(--card-rgb), var(--sticla-camp-op
   /* Antetul, o nuanta mai adanca decat sina (45% fata de 30%), ca sa se
      distinga vizual de corpul barei - tot din --culoare-sectiune mostenita. */
   background: rgba(0, 0, 0, 0.06);
-  background: color-mix(in srgb, var(--culoare-sectiune, rgba(0, 0, 0, 0.06)) 45%, white);
   line-height: 1.15;
+}
+@supports (color: color-mix(in srgb, red, blue)) {
+  .bara-verticala {
+    background: color-mix(in srgb, var(--culoare-sectiune, #f2f2f2) 30%, white);
+  }
+  .bara-verticala-nume {
+    background: color-mix(in srgb, var(--culoare-sectiune, rgba(0, 0, 0, 0.06)) 45%, white);
+  }
 }
 
 /* Cutia care CHIAR se deruleaza - una PE BARA, independenta de celelalte:

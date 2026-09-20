@@ -799,12 +799,29 @@
       return;
     }
     var versiune = window.TEGN_LISTA_OFFLINE_VERSIUNE || "";
-    caches.open("tegn-offline-" + versiune).then(function (cache) {
-      return cache.keys();
+    var numeCache = "tegn-offline-" + versiune;
+    // 🔴 TG-026 runda 3: eticheta promite „gata pentru folosire fara internet".
+    // Pe tableta scria „ja" cu 719 din 921 de fisiere in cache si 22 de pictograme
+    // rupte pe ecran. Cauza veche: se compara NUMARUL de chei din cache cu lungimea
+    // listei (`n >= m`) — orice intrare in plus sau alta ascundea lipsurile. Acum
+    // se numara cate fisiere DIN LISTA sunt chiar acolo, cheie cu cheie, si „da"
+    // apare doar la egalitate cu lista intreaga.
+    // `caches.has` inainte de `open`: `open` ar CREA un cache gol daca lipseste.
+    caches.has(numeCache).then(function (exista) {
+      if (!exista) return null;
+      return caches.open(numeCache).then(function (cache) { return cache.keys(); });
     }).then(function (chei) {
-      var n = chei.length;
       var m = lista.length;
-      span.textContent = n >= m
+      var prezente = {};
+      var baza = location.href.replace(/[^\/]*$/, "");
+      (chei || []).forEach(function (cheie) {
+        var url = String(cheie.url || cheie).split("?")[0];
+        if (baza && url.indexOf(baza) === 0) url = url.slice(baza.length);
+        prezente[url] = true;
+      });
+      var n = 0;
+      for (var i = 0; i < m; i++) { if (prezente[lista[i]]) n++; }
+      span.textContent = n === m
         ? textInterfata("prefOfflineGata")
         : textInterfata("prefOfflineDescarca").replace("{n}", n).replace("{m}", m);
     }).catch(function () {
