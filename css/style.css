@@ -186,6 +186,45 @@ button {
   #ecran { height: calc(100dvh / var(--zoom-factor)); }
 }
 
+/* -------------------------------------------------- ecran de incarcare (TG-027) */
+/* TG-027 (20.09.2026): sigla acopera aplicatia pana se incarca pictogramele
+   vizibile la pornire (js/app.js, initEcranIncarcare). NU foloseste dvh/
+   color-mix/:has (lipsesc pe Chrome 101, tableta lui copilul) - doar
+   position: fixed cu top/right/bottom/left explicit, mers pe orice browser.
+   z-index peste tot ce exista deja (controale-fixe=35, ecran-complet=35). */
+.ecran-incarcare {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  background: var(--bg);
+}
+.ecran-incarcare-sigla {
+  width: 160px;
+  height: 160px;
+  max-width: 40vw;
+  max-height: 40vh;
+  object-fit: contain;
+}
+.ecran-incarcare-text {
+  margin: 0;
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--accent-dark);
+}
+/* Ascuns dupa ce ascundeEcranIncarcare() a rulat - `display: none`, nu doar
+   `hidden` pe atribut, ca sa nu depinda de ordinea specificitatii. */
+.ecran-incarcare-ascuns {
+  display: none;
+}
+
 /* ---------------------------------------------------- fundal + controale fixe */
 /* TG-019: poza de fundal, mecanism identic AIR (2. AIR/css/style.css
    :500-531) - pseudo-element FIX pe body, z-index:-1, filtrat sub #ecran si sub
@@ -786,6 +825,20 @@ body.fundal-tegn .banda { background: rgba(var(--card-rgb), var(--sticla-camp-op
   /* TG-024: pe 400 px cosul iesea 43x48 - latimea minima garanteaza tinta. */
   min-width: 44px;
 }
+
+/* TG-028 (20.09.2026): viteza citirii, langa "Les" - acelasi stil neutru ca
+   sterge/goleste (nu concureaza cu verdele lui .buton-citeste), aceeasi tinta
+   de atingere minima (regula TG-024, aceeasi cifra 44px). */
+.buton-viteza {
+  background: #f2f2f2;
+  color: var(--text);
+  font-size: 0.95rem;
+  font-weight: 700;
+  padding: 10px 10px;
+  min-width: 44px; /* buton-viteza, TG-024/TG-028 */
+  min-height: 44px; /* buton-viteza, TG-024/TG-028 */
+}
+.buton-viteza:active { transform: scale(0.98); }
 
 /* ------------------------------------------------------ cereri rapide */
 /* TG-011 (19.09.2026): rand de 8 pictograme MARI, mereu vizibil, intre zona de

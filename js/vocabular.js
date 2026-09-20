@@ -572,5 +572,13 @@ window.TEGN_INTERFATA = {
   prefOfflineIndisponibil: {
     "ro": "—",
     "nb": "—"
+  },
+  // TG-028 (20.09.2026, dosar/decizii/TG-028.md): butonul de viteza a citirii,
+  // langa "Les" - textul butonului e numeric ("1.0×", ca "100%" la zoom, fara
+  // traducere), doar aria-label-ul are text. Norvegiana e text NEVERIFICAT de
+  // vorbitor nativ, aceeasi perioada de proba (RW-293).
+  ariaButonViteza: {
+    "ro": "Viteza citirii, atinge pentru a schimba",
+    "nb": "Lesehastighet, trykk for å endre"
   }
 };

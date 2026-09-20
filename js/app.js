@@ -243,6 +243,45 @@
   var CHEIE_ZOOM = "tegn_zoom";
   var ZOOM_MIN = 0.7, ZOOM_MAX = 1.3, ZOOM_PAS = 0.1;
 
+  // ------------------------------------------------- viteza citirii (TG-028)
+  // Cheie PROPRIE localStorage (tine minte pe aparat, ca zoom-ul/limba de mai
+  // sus - fara cont, fara retea). Treptele: 0,6 · 0,8 · 1 · 1,2 (propuse in
+  // promptul de sarcina); implicit = viteza de azi (1). Se aplica in
+  // redaCuvant() (mai jos), UN SINGUR loc prin care trec si banda ("Les"), si
+  // cererile rapide, si atingerea unei singure pictograme (sunetAtingere).
+  var CHEIE_VITEZA = "tegn_viteza";
+  var TREPTE_VITEZA = [0.6, 0.8, 1, 1.2];
+  var VITEZA_IMPLICITA = 1;
+
+  function citesteViteza() {
+    try {
+      var v = parseFloat(localStorage.getItem(CHEIE_VITEZA));
+      if (TREPTE_VITEZA.indexOf(v) !== -1) return v;
+    } catch (e) {}
+    return VITEZA_IMPLICITA;
+  }
+
+  function salveazaViteza(v) {
+    try { localStorage.setItem(CHEIE_VITEZA, String(v)); } catch (e) {}
+  }
+
+  // Cicleaza la urmatoarea treapta (cu revenire la inceput dupa ultima) - un
+  // SINGUR buton, ca sa incapa langa "Les" fara sa strice randul pe 400px
+  // (vezi masuratorile TG-018/TG-024 pe acelasi rand).
+  function urmatoareaTreaptaViteza(v) {
+    var i = TREPTE_VITEZA.indexOf(v);
+    if (i === -1) i = TREPTE_VITEZA.indexOf(VITEZA_IMPLICITA);
+    return TREPTE_VITEZA[(i + 1) % TREPTE_VITEZA.length];
+  }
+
+  function actualizeazaButonViteza() {
+    var b = document.getElementById("butonViteza");
+    if (!b) return;
+    var v = citesteViteza();
+    b.textContent = v.toFixed(1) + "×"; // viteza aleasa se vede pe control, TG-028
+    b.setAttribute("aria-label", textInterfata("ariaButonViteza") + ": " + v.toFixed(1) + "×");
+  }
+
   // ---------------------------------------------------- preferinte (TG-016)
   // Ecran de preferinte pentru ADULT, tinut pe aparat (localStorage), fara
   // cont si fara server (dosar/decizii/TG-016.md). UN SINGUR obiect JSON, o
@@ -1604,6 +1643,7 @@
       butonPref.setAttribute("aria-label", textInterfata("ariaPreferinte"));
       butonPref.title = textInterfata("ariaPreferinte");
     }
+    actualizeazaButonViteza(); // TG-028: aria-label-ul depinde de limba
   }
 
   function randeazaTot() {
@@ -1658,12 +1698,17 @@
       audio.addEventListener("ended", laSfarsit);
       audio.addEventListener("error", laEroare);
       audio.src = cale;
+      // TG-028: la schimbarea `src` elementul se reincarca si `playbackRate` revine
+      // la `defaultPlaybackRate` (comportamentul din standardul HTML; NEMASURAT pe
+      // tableta) - de aceea se pune DUPA fiecare `src`, inainte de `play()`.
+      audio.playbackRate = citesteViteza();
       function laEroare() {
         // fara mp3 pentru acest cuvant inca (ex. inainte de a rula
         // genereaza_audio_tegn.py) — rezerva: speechSynthesis.
         if (!window.speechSynthesis) { gata(); return; }
         var u = new SpeechSynthesisUtterance(eticheta(intrare));
         u.lang = LIMBA === "nb" ? "nb-NO" : "ro-RO";
+        u.rate = citesteViteza(); // TG-028: aceeasi viteza si pe rezerva vorbita
         u.onend = gata;
         u.onerror = gata;
         window.speechSynthesis.speak(u);
@@ -1691,6 +1736,59 @@
     urmatorul();
   }
 
+  // --------------------------------------------- ecran de incarcare (TG-027)
+  // Decizia lui Cristian ("A", dosar/decizii/TG-027.md): sigla acopera
+  // aplicatia pana se incarca pictogramele VIZIBILE la pornire (cererile
+  // rapide, bara de sectiuni, prima tabla), cel mult 30 de secunde; o
+  // pictograma cu eroare NU tine ecranul blocat; pe un aparat rapid dispare
+  // imediat. Divul e static in index.html (nu creat de JS) - vezi comentariul
+  // de acolo.
+  var PLAFON_INCARCARE_MS = 30000;
+  var incarcareAscunsa = false;
+
+  function ascundeEcranIncarcare() {
+    if (incarcareAscunsa) return;
+    incarcareAscunsa = true;
+    var el = document.getElementById("ecranIncarcare");
+    if (el) el.classList.add("ecran-incarcare-ascuns");
+  }
+
+  // `img.complete` e true si pentru o imagine care a esuat deja de incarcat
+  // (MDN) - `naturalWidth === 0` ar distinge, dar aici NU conteaza: o eroare
+  // nu are voie sa tina ecranul blocat, deci orice stare finala (gata sau
+  // eroare) rezolva promisiunea la fel.
+  function asteaptaImagine(img) {
+    return new Promise(function (rezolva) {
+      if (img.complete) { rezolva(); return; }
+      function gata() {
+        img.removeEventListener("load", gata);
+        img.removeEventListener("error", gata); // eroarea NU blocheaza, TG-027
+        rezolva();
+      }
+      img.addEventListener("load", gata);
+      img.addEventListener("error", gata);
+    });
+  }
+
+  function initEcranIncarcare() {
+    var imagini = [];
+    // "pictogramele vizibile la pornire" (cerinta lui Cristian): cererile
+    // rapide, bara de sectiuni, prima tabla - EXACT cele trei containere,
+    // dupa randarea lor finala (apelat dupa aplicaZoom() in init, mai jos).
+    ["cereriRapide", "baraSectiuni", "tabla"].forEach(function (id) {
+      var cont = document.getElementById(id);
+      if (!cont || !cont.querySelectorAll) return;
+      var lista = cont.querySelectorAll("img");
+      for (var i = 0; i < lista.length; i++) imagini.push(lista[i]);
+    });
+    // Plafonul de 30s ramane oricum, indiferent daca sunt sau nu imagini de
+    // asteptat - dar daca nu e nimic de asteptat, ecranul dispare imediat
+    // (aparat rapid / tabla goala).
+    if (!imagini.length) { ascundeEcranIncarcare(); return; }
+    Promise.all(imagini.map(asteaptaImagine)).then(ascundeEcranIncarcare);
+    setTimeout(ascundeEcranIncarcare, PLAFON_INCARCARE_MS); // plafon 30s, TG-027
+  }
+
   // -------------------------------------------------------------- init
 
   document.addEventListener("DOMContentLoaded", function () {
@@ -1700,6 +1798,11 @@
     document.getElementById("butonLimba").addEventListener("click", function () {
       salveazaLimba(LIMBA === "nb" ? "ro" : "nb");
       randeazaTot();
+    });
+    // TG-028: un SINGUR buton, cicleaza treptele de viteza la fiecare atingere.
+    document.getElementById("butonViteza").addEventListener("click", function () {
+      salveazaViteza(urmatoareaTreaptaViteza(citesteViteza()));
+      actualizeazaButonViteza();
     });
     document.getElementById("an").textContent = new Date().getFullYear();
 
@@ -1718,6 +1821,11 @@
     // rezerva locul lor (aplicaZoom de mai sus o face deja, randul asta e
     // pentru cazul in care el ar iesi devreme).
     actualizeazaLatimeaControalelor();
+
+    // TG-027: ecranul cu sigla se ascuta DUPA ce tabla e in forma ei finala
+    // (dupa aplicaZoom(), care re-randeaza #tabla la factorul salvat) - altfel
+    // am astepta imaginile primei randari, nu pe cele CHIAR aratate.
+    initEcranIncarcare();
 
     // Sectiunile FARA subgrupe (Intrebari, Culori) isi recalculeaza numarul de
     // bare la redimensionare (plan, pas 1) - subgrupele (Obiecte, Persoane, ...)

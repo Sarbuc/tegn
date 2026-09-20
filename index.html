@@ -25,6 +25,18 @@
   <meta name="apple-mobile-web-app-title" content="Tegn">
 </head>
 <body class="fundal-tegn">
+  <!-- TG-027 (20.09.2026, dosar/decizii/TG-027.md, "A"): ecran cu sigla care acopera
+       aplicatia pana cand pictogramele VIZIBILE la pornire (cereri rapide, bara de
+       sectiuni, prima tabla) sunt incarcate (js/app.js, initEcranIncarcare/
+       ascundeEcranIncarcare) sau pana la 30 de secunde. Trebuie sa existe AICI, in
+       HTML de la inceput, nu pus tarziu din JS - altfel s-ar vedea o clipa tabla
+       goala (cerinta lui Cristian, exact ce vedea pe tableta inainte). Fond +
+       sigla, ca ecranul de pornire al aplicatiei instalate - vezi
+       manifest.webmanifest (background_color/icons). -->
+  <div id="ecranIncarcare" class="ecran-incarcare" aria-hidden="true">
+    <img src="marca/icon_512.png?v=1" alt="" class="ecran-incarcare-sigla">
+    <p class="ecran-incarcare-text">Tegn</p>
+  </div>
   <!-- TG-019 (19.09.2026, dosar/planuri/TG-019-aspect-ca-AIR-2026-09-19.md): tot
        continutul intra in #ecran, containerul scalat de zoom (JS,
        aplicaZoom/js/app.js, `ecran.style.zoom`, NU transform). Controlul de zoom
@@ -60,6 +72,12 @@
       <div id="banda" class="banda"></div>
       <div class="banda-actiuni">
         <button id="butonCiteste" class="buton buton-citeste" type="button">▶ Citește</button>
+        <!-- TG-028 (20.09.2026, dosar/decizii/TG-028.md): viteza citirii, langa "Les" -
+             un singur buton care CICLEAZA prin treptele 0,6/0,8/1/1,2 (js/app.js,
+             TREPTE_VITEZA), afisand treapta curenta ("1.0×"). Se aplica vocii
+             inregistrate (playbackRate), vocii de rezerva (speechSynthesis.rate) si
+             atingerii unei singure pictograme - toate trec prin redaCuvant(). -->
+        <button id="butonViteza" class="buton buton-viteza" type="button">1.0×</button>
         <button id="butonSterge" class="buton buton-sterge" type="button" aria-label="Sterge ultima pictograma">⌫</button>
         <button id="butonGoleste" class="buton buton-goleste" type="button" aria-label="Goleste propozitia">🗑</button>
       </div>
