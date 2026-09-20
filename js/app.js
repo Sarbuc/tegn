@@ -938,11 +938,28 @@
     return !!(document.fullscreenElement || document.webkitFullscreenElement);
   }
 
+  // TG-026 punctul 3 (20.09.2026, capturi Cristian): butonul arata un patratel
+  // gol ("tofu") pe tableta Android - glifele U+26F6 si U+29C9 (scrise aici cu
+  // CODUL, nu cu semnul: proba TG-026 refuza semnul intors in fisier) nu
+  // exista in fontul aparatului, iar pagina n-are font propriu (fara CDN, fara
+  // font extern - regula proiectului). Desenul e acum un SVG INLINE, deci nu
+  // mai depinde de niciun font: patru coltare (intra) / doua dreptunghiuri
+  // suprapuse (iesi). `currentColor` pastreaza culoarea butonului (#333).
+  // `focusable="false"` + `aria-hidden` - eticheta o da aria-label-ul butonului.
+  var SVG_ECRAN_COMPLET_INTRA =
+    '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" ' +
+    'stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' +
+    '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>';
+  var SVG_ECRAN_COMPLET_IESI =
+    '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" ' +
+    'stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' +
+    '<path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg>';
+
   function actualizeazaButonEcranComplet() {
     var b = document.getElementById("butonEcranComplet");
     if (!b) return;
     var activ = eEcranComplet();
-    b.textContent = activ ? "⧉" : "⛶";
+    b.innerHTML = activ ? SVG_ECRAN_COMPLET_IESI : SVG_ECRAN_COMPLET_INTRA; /* icoana ecran complet, TG-026 */
     b.setAttribute("aria-pressed", String(activ));
     b.setAttribute("aria-label", textInterfata(activ ? "ariaEcranCompletIesi" : "ariaEcranCompletIntra"));
   }
@@ -1168,6 +1185,7 @@
 
   function randeazaBaraSectiuni() {
     var bara = document.getElementById("baraSectiuni");
+    var derulareDinainte = bara.scrollLeft || 0; /* derulare inainte de golire, TG-026 */
     bara.innerHTML = "";
     var elemente = ORDINE_SECTIUNI.map(function (sect) {
       var icoana = dupaId(ICOANA_SECTIUNE[sect]);
@@ -1180,7 +1198,14 @@
       };
     });
     // TG-021: randarea goleste bara, deci derularea ei se pierde - o tinem minte.
-    var derulareDinainte = bara.scrollLeft || 0;
+    // TG-026 punctul 5 (20.09.2026): randul asta statea DUPA `bara.innerHTML = ""`
+    // (mai sus), iar golirea continutului duce `scrollLeft` la 0 - deci
+    // "derularea de dinainte" era MEREU 0, o masuratoare moarta. Citit acum
+    // inainte de golire (vezi `derulareDinainte` luat in randeazaBaraSectiuni),
+    // pozitia in care omul a lasat bara se pastreaza, iar clamparea de mai jos
+    // (`ales < primulVizibil` / `ales > primulVizibil + n - 1`) o trage inapoi
+    // cand sectiunea DESCHISA ar ramane in afara - exact ce lipsea pe tableta
+    // (bara incepea de la "Obiecte", cu "Persoane" deschisa si nevazuta).
     randButoane(bara, "sectiune-buton", elemente, function (el) {
       sectiuneAleasa = el.sect;
       randeazaTot();
@@ -1219,6 +1244,17 @@
     if (ales > primulVizibil + n - 1) primulVizibil = ales - n + 1;
     primulVizibil = Math.max(0, Math.min(total - n, primulVizibil));
     bara.scrollLeft = primulVizibil * pas;
+    // TG-026 punctul 5: bara are `scroll-snap-type: x mandatory` (css/style.css)
+    // - dupa o schimbare de continut/latime browserul poate "re-agata" derularea
+    // singur, DUPA randul de mai sus, si sectiunea deschisa sa iasa iar din
+    // vedere. Valoarea se re-pune o data la cadrul urmator, cand asezarea s-a
+    // linistit. Fara requestAnimationFrame (DOM-ul minimal al probelor cu
+    // `node`) nu se intampla nimic - randul de mai sus a facut deja treaba.
+    if (typeof requestAnimationFrame === "function") {
+      requestAnimationFrame(function () {
+        if (bara.isConnected !== false) bara.scrollLeft = primulVizibil * pas;
+      });
+    }
   }
 
   // TG-018: o bara verticala = { nume: string|null, intrari: [...] }. `nume`
@@ -1630,5 +1666,30 @@
     window.addEventListener("resize", reasazaDupaSchimbareaFerestrei);
     document.addEventListener("fullscreenchange", reasazaDupaSchimbareaFerestrei);
     document.addEventListener("webkitfullscreenchange", reasazaDupaSchimbareaFerestrei);
+    // TG-026 punctul 1 (20.09.2026, capturi Cristian pe tableta Android, in
+    // ecran complet): tabla ramanea calculata pe fereastra de DINAINTE de ecran
+    // complet - 2 randuri si o fasie din al treilea, iar sub subsol ramanea
+    // ecran gol (~140px din 768 la lat, ~390px din 1024 la inalt). Cifrele se
+    // potrivesc exact cu o fereastra cu 140 (respectiv 390) px mai scunda:
+    // asezarea NU s-a refacut dupa ce bara browserului s-a ascuns.
+    // Cele trei ceasuri de mai sus (0/150/600ms) sunt o GHICITURA despre cat
+    // dureaza pe aparat - pe Android bara de sistem se ascunde cu animatie si
+    // poate trece de 600ms, iar `resize` nu vine garantat la marimea finala.
+    // ResizeObserver nu ghiceste: se declanseaza cand #ecran (inaltimea lui =
+    // `calc(100dvh / factor)`, css/style.css) chiar si-a schimbat marimea,
+    // oricat de tarziu si de cate ori. Prima notificare vine chiar la observare
+    // (marimea de acum) - o sarim, ca sa nu randam a doua oara degeaba.
+    // 🔴 NU se scoate niciunul dintre cele de mai sus: `resize`/`fullscreenchange`
+    // raman pentru browserele fara ResizeObserver.
+    if (typeof ResizeObserver === "function") {
+      var ecranDeUrmarit = document.getElementById("ecran");
+      var prima = true;
+      if (ecranDeUrmarit) {
+        new ResizeObserver(function () { /* ResizeObserver asezare, TG-026 */
+          if (prima) { prima = false; return; }
+          reasazaDupaSchimbareaFerestrei();
+        }).observe(ecranDeUrmarit);
+      }
+    }
   });
 })();

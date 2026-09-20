@@ -88,7 +88,15 @@
       </details>
       <p class="semnatura">
         <img src="marca/karagl.png?v=1" alt="" class="logo-karagl">
-        © <span id="an"></span> Cristian Sirbu
+        <!-- TG-026 punctul 7 (20.09.2026): pe tableta scria "©2026Cristian Sirbu",
+             fara spatii. `.semnatura` e `display: flex` (css/style.css), iar un
+             container flex rupe textul in elemente anonime SEPARATE - "©",
+             "2026" si "Cristian Sirbu" deveneau trei elemente, iar spatiile
+             dintre ele se pierdeau; pe ecranul asta le tine departe doar
+             `gap: 6px`, care pe aparatul acela n-a aplicat. Un SINGUR <span>
+             face din tot randul un singur element flex: spatiile sunt text
+             normal inauntru si nu mai depind de nicio regula de asezare. -->
+        <span class="semnatura-text">© <span id="an"></span> Cristian Sirbu</span>
       </p>
     </footer>
   </main>

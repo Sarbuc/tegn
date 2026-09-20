@@ -61,6 +61,20 @@
   /* Latimea unui buton de urgenta; din ea se deriva latimea panourilor (#ecran).
      100px (nu 92): cele 8 urgente si cele 10 sectiuni umplu aceeasi latime. */
   --urgenta-l: 100px;
+  /* TG-026 (20.09.2026): latimea maxima a lui #ecran era scrisa o singura data,
+     direct in `max-width`-ul lui. Controalele fixe (zoom/limba/⚙, ecran complet)
+     stau in AFARA lui #ecran si se lipeau de marginea FERESTREI - masurat pe
+     tableta (1024x768): antetul se termina la x=957, roata ajungea la x=1016,
+     deci 59px in afara placii. Formula devine un token, ca sa o poata folosi si
+     ele. */
+  --ecran-max-l: calc(8 * var(--urgenta-l) + 7 * 8px + 34px + 32px);
+  /* TG-026: marginea dreapta a controalelor fixe = marginea dreapta a placilor
+     lui #ecran, adica 16px in interiorul lui. Pe ecran LAT, #ecran e centrat si
+     mai ingust decat fereastra: se adauga jumatatea golului lateral (pe 1024:
+     (1024-922)/2 + 16 = 67, deci marginea la x=957, exact cat antetul). Pe
+     ecran INGUST (768) golul e negativ, iar `max` lasa cei 16px ai placilor
+     (marginea la x=752, masurat). */
+  --controale-dreapta: max(16px, calc((100vw - var(--ecran-max-l)) / 2 + 16px));
   --chip-fundal: rgba(255, 255, 255, 0.7);
   --chip-fundal-hover: rgba(230, 230, 230, 0.9);
 }
@@ -127,7 +141,7 @@ button {
      + padding-ul panoului (2 x 16px) + marginea sticlei (2 x 1px) + marginile
      panoului fata de #ecran (2 x 16px, masurat in browser). Bara de
      sectiuni (10 x 78px + 9 x 8px = 852px) incape in aceeasi latime. */
-  max-width: calc(8 * var(--urgenta-l) + 7 * 8px + 34px + 32px);
+  max-width: var(--ecran-max-l); /* TG-026: formula e acum tokenul --ecran-max-l */
   height: 100vh;
   height: calc(100dvh / var(--zoom-factor));
   overflow: hidden;
@@ -141,6 +155,7 @@ button {
 body.fundal-tegn::before {
   content: "";
   position: fixed;
+  top: 0; right: 0; bottom: 0; left: 0; /* rezerva pentru Chrome sub 87, care nu stie `inset` (tableta, 20.09.2026) */
   inset: 0;
   z-index: -1;
   background-image: url("../imagini_fundal/fundal_acasa.jpg");
@@ -148,6 +163,26 @@ body.fundal-tegn::before {
   background-size: cover;
   background-repeat: no-repeat;
   pointer-events: none;
+}
+/* TG-026 punctul 8 (20.09.2026): pe tableta Android, in ecran complet, fundalul
+   era crem simplu - poza nu se vedea deloc (2 capturi, Cristian 11:23). NU s-a
+   putut reproduce pe masina asta: poza apare pe file://, pe http://127.0.0.1 cu
+   service worker activ (921 fisiere in cache) SI in ecran complet REAL (click
+   de incredere pe buton, document.fullscreenElement = HTML) - deci cauza ramane
+   NEMASURATA. Ce se face aici nu e un diagnostic, e o REDUNDANTA: aceeasi poza
+   si ca fundal propriu al lui `body`. Ordinea de pictare a unui element e
+   "fundal propriu, apoi copiii cu z-index negativ", deci `::before` ramane
+   DEASUPRA si nimic nu se schimba unde deja merge (masurat: capturi identice);
+   daca pe aparatul acela `::before` nu se picteaza, poza vine din fundalul lui
+   `body`. Aceeasi adresa, deci acelasi fisier din cache - nicio descarcare in
+   plus. `background-color` ramane var(--bg), rezerva daca poza lipseste.
+   🔴 `html` NU primeste fundal aici - vezi comentariul de la `html, body`. */
+body.fundal-tegn {
+  background-color: var(--bg);
+  background-image: url("../imagini_fundal/fundal_acasa.jpg");
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
 }
 
 /* Titlul "Tegn" pe placa opaca peste poza - nu direct pe fotografie (decizia
@@ -169,6 +204,16 @@ body.fundal-tegn .subsol {
   border-radius: var(--raza);
   /* 16px pe laterale: aliniat cu panourile de sticla de deasupra. */
   margin: 2px 16px;
+  /* TG-026 punctul 2 (20.09.2026): subsolul statea la MIJLOCUL ecranului, cu
+     ecran gol dedesubt (masurat pe tableta: 140px din 768 la lat, 390px din
+     1024 la inalt). Cauza: `strangeTablaPeBare` (js/app.js) fixeaza inaltimea
+     lui #tabla (`flex: 0 0 auto`), deci NIMIC din #ecran nu mai creste ca sa
+     umple inaltimea - continutul se aduna sus si restul ramane gol. Masurat
+     aici, 1024x768: cu #tabla la 200px, subsolul cade la 625 si raman 143px
+     goi sub el. `margin-top: auto` trimite tot spatiul ramas DEASUPRA
+     subsolului: subsolul sta lipit de marginea de jos la orice inaltime, si
+     cand tabla nu apuca sa se recalculeze. */
+  margin-top: auto;
   font-size: 0.8rem;
 }
 /* <p> vine cu margini de 1em: umflau subsolul la 52px si scoteau o pictograma
@@ -184,10 +229,16 @@ body.fundal-tegn .nota-nb-proba {
    (creeazaControlZoom, js/app.js) pe document.body, in AFARA #ecran - raman la
    aceeasi marime reala, colt dreapta-sus, oglinda AIR
    (2. AIR/css/style.css:1097-1133). */
+/* TG-026 punctul 4 (20.09.2026): controalele se lipeau de marginea FERESTREI
+   (`right: 8px`), nu de placile lui #ecran - pe 1024 latime antetul se termina
+   la x=957, iar roata ajungea la x=1016 (59px in afara placii, masurat).
+   `--controale-dreapta` le aduce pe marginea dreapta a placilor (:root), iar
+   `top: 0` + inaltimea de 50px a chipurilor le face sa intre EXACT in banda
+   antetului (0-50), nu sa iasa peste el in jos. */
 .controale-fixe {
   position: fixed;
-  top: 8px;
-  right: 8px;
+  top: 0;
+  right: var(--controale-dreapta); /* controale-fixe, TG-026 */
   z-index: 35;
   display: flex;
   align-items: center;
@@ -197,7 +248,7 @@ body.fundal-tegn .nota-nb-proba {
    19.09.2026 21:18). Butonul are 44x44 (tinta de atingere a Tegn-ului). */
 .ecran-complet-control {
   position: fixed;
-  right: 8px;
+  right: var(--controale-dreapta); /* ecran-complet-control, TG-026 */
   bottom: 8px;
   z-index: 35;
   display: flex;
@@ -216,6 +267,11 @@ body.fundal-tegn .nota-nb-proba {
   font-size: 1.2rem;
   line-height: 1;
   cursor: pointer;
+  /* TG-026: icoana e un SVG inline (js/app.js), nu o glifa de font - se
+     centreaza ca element, nu ca text. */
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .ecran-complet-buton:hover { background: var(--chip-fundal-hover); }
 
@@ -257,6 +313,9 @@ body.fundal-tegn .nota-nb-proba {
 .controale-fixe .buton-limba {
   background: var(--chip-fundal);
   box-shadow: var(--umbra);
+  /* TG-026: 10px sus/jos duceau chipul la 54px, iar controalele fixe ieseau sub
+     antetul de 50px. Tinta de atingere ramane din min-width/min-height 44. */
+  padding: 3px 14px; /* buton-limba in controale, TG-026 */
 }
 .controale-fixe .buton-limba:hover { background: var(--chip-fundal-hover); }
 
@@ -266,7 +325,10 @@ body.fundal-tegn .nota-nb-proba {
   font-size: 1.4rem;
   background: var(--chip-fundal);
   box-shadow: var(--umbra);
-  padding: 8px 14px;
+  /* TG-026: 8px sus/jos umflau chipul la 54px si controalele ieseau sub antetul
+     de 50px; 3px il aduc la 50, exact cat antetul. Tinta de atingere ramane
+     garantata de min-width/min-height 44 de mai jos. */
+  padding: 3px 14px;
   border-radius: var(--raza);
   min-width: 44px;
   min-height: 44px;
@@ -281,6 +343,7 @@ body.fundal-tegn .nota-nb-proba {
    pagina din spate, nu la panoul insusi). */
 .ecran-preferinte {
   position: fixed;
+  top: 0; right: 0; bottom: 0; left: 0; /* rezerva pentru Chrome sub 87, care nu stie `inset` (tableta, 20.09.2026) */
   inset: 0;
   z-index: 50;
   display: flex;
@@ -359,6 +422,7 @@ body.fundal-tegn .nota-nb-proba {
    (fundal intunecat, panou centrat, scrolabil pe telefon). */
 .ecran-istoric {
   position: fixed;
+  top: 0; right: 0; bottom: 0; left: 0; /* rezerva pentru Chrome sub 87, care nu stie `inset` (tableta, 20.09.2026) */
   inset: 0;
   z-index: 50;
   display: flex;
@@ -690,8 +754,19 @@ body.fundal-tegn .banda { background: rgba(var(--card-rgb), var(--sticla-camp-op
   display: flex;
   flex-direction: column;
   align-items: center;
-  width: var(--urgenta-l);
-  padding: 8px 6px 6px;
+  /* TG-026 punctul 6 (20.09.2026): pe 768 latime a 8-a cerere ("te rog") era
+     TAIATA la marginea dreapta si nimic nu arata ca bara se deruleaza (masurat:
+     banda are 734px vizibili, cele 8 butoane de 100px + 7 goluri cer 888).
+     Cerinta lui Cristian: sa incapa toate 8. Latimea devine cat locul real
+     imparte la 8, dar niciodata peste --urgenta-l (100px, ca azi pe ecran lat)
+     si niciodata sub 76px (76 = 72px pictograma + 2x2px padding - sub atat
+     pictograma ar iesi din buton). Sub pragul asta, adica pe telefon (400px),
+     bara se deruleaza mai departe ca azi, cu butoane INTREGI de 76px - peste
+     tinta de atingere de 44px. `100%` se masoara pe cutia de continut a
+     `.cereri-rapide` (latimea minus padding-ul ei de 2x16px). */
+  width: min(var(--urgenta-l), calc((100% - 7 * 8px) / 8)); /* cerere-rapida latime, TG-026 */
+  min-width: 76px;
+  padding: 8px 2px 6px;
   border-radius: var(--raza);
   box-shadow: var(--umbra);
   min-height: 118px;
@@ -702,8 +777,12 @@ body.fundal-tegn .banda { background: rgba(var(--card-rgb), var(--sticla-camp-op
   background: var(--cerere-rapida);
 }
 .cerere-rapida-buton img {
-  width: 72px;
-  height: 72px;
+  /* TG-026: pictograma ramane 72px cat incape (cerinta TG-011 "MARI, >=72px");
+     cand butonul se strange sub 72, imaginea se strange cu el in loc sa iasa
+     afara. `aspect-ratio` tine patratul fara inaltime in procente. */
+  width: min(72px, 100%); /* cerere-rapida img, TG-026 */
+  height: auto;
+  aspect-ratio: 1 / 1;
   object-fit: contain;
   background: #fff;
   border-radius: 12px;
