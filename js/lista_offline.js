@@ -2,7 +2,7 @@
 // TG-012: lista completa de fisiere puse in cache de sw.js, plus o versiune
 // derivata din continut (schimba orice fisier listat -> versiune noua ->
 // sw.js invalideaza cache-ul vechi la activate).
-window.TEGN_LISTA_OFFLINE = [
+self.TEGN_LISTA_OFFLINE = [
   "audio/nb_acasa.mp3",
   "audio/nb_acum.mp3",
   "audio/nb_afara.mp3",
@@ -925,6 +925,6 @@ window.TEGN_LISTA_OFFLINE = [
   "pictograme/vulpe.png",
   "pictograme/vultur.png"
 ];
-window.TEGN_LISTA_OFFLINE_VERSIUNE = "3b33e50279d8";
-window.TEGN_LISTA_OFFLINE_NUMAR = 921;
-window.TEGN_LISTA_OFFLINE_MARIME_OCTETI = 20007742;
+self.TEGN_LISTA_OFFLINE_VERSIUNE = "3b33e50279d8";
+self.TEGN_LISTA_OFFLINE_NUMAR = 921;
+self.TEGN_LISTA_OFFLINE_MARIME_OCTETI = 20007742;
