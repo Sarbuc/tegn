@@ -1525,18 +1525,30 @@
 
   // -------------------------------------------------------------- audio
 
+  // UN SINGUR element audio pentru toata propozitia (tableta, 20.09.2026 10:59: se auzea
+  // doar primul cuvant). Pe Android, Chrome lasa sa cante doar elementul pornit de o
+  // atingere; un `new Audio()` facut mai tarziu, din setTimeout, e refuzat in tacere.
+  // Elementul deja "deblocat" de atingere poate primi alt `src` si canta mai departe.
+  var audioComun = null;
+
   function redaCuvant(intrare) {
     return new Promise(function (rezolva) {
       var cale = "audio/" + LIMBA + "_" + intrare.id + ".mp3";
-      var audio = new Audio(cale);
+      if (!audioComun) audioComun = new Audio();
+      var audio = audioComun;
       var terminat = false;
+      function laSfarsit() { gata(); }
       function gata() {
         if (terminat) return;
         terminat = true;
+        audio.removeEventListener("ended", laSfarsit);
+        audio.removeEventListener("error", laEroare);
         rezolva();
       }
-      audio.addEventListener("ended", gata);
-      audio.addEventListener("error", function () {
+      audio.addEventListener("ended", laSfarsit);
+      audio.addEventListener("error", laEroare);
+      audio.src = cale;
+      function laEroare() {
         // fara mp3 pentru acest cuvant inca (ex. inainte de a rula
         // genereaza_audio_tegn.py) — rezerva: speechSynthesis.
         if (!window.speechSynthesis) { gata(); return; }
@@ -1545,8 +1557,10 @@
         u.onend = gata;
         u.onerror = gata;
         window.speechSynthesis.speak(u);
-      });
-      audio.play().catch(gata);
+      }
+      var pornire = audio.play();
+      // fisier lipsa = il trateaza `laEroare` (rezerva vorbita); aici doar refuzul de a canta.
+      if (pornire && pornire.catch) pornire.catch(function () { if (!audio.error) gata(); });
     });
   }
 
