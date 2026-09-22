@@ -80,7 +80,12 @@ function umple(cache) {
           })
         );
       });
-    }, Promise.resolve());
+    }, Promise.resolve()).then(function () {
+      // TG-030 I2: singurul moment in care continutul unei adrese se poate schimba
+      // sub memoria de blob-uri (pana acum raspundea cache-ul VECHI, acum e adus in
+      // cel nou). Golirea e ieftina si se face o data per umplere, nu per cerere.
+      golesteMemoriaDeBlob();
+    });
   });
 }
 
@@ -151,8 +156,42 @@ self.addEventListener("activate", function (eveniment) {
 // `redaCuvant` (js/app.js) trece pe rezerva vorbita. CU internet nu se vedea,
 // fiindca reteaua raspunde corect cu 206.
 // Aici se construieste raspunsul 206 din chiar octetii din cache.
-function raspunsPartialDinCache(raspuns, antetRange) {
+// 🟡 TG-030 I2 (auditul de securitate 22.09.2026, grad INFORMATIV; reparate toate,
+// indiferent de grad — decizia lui Cristian, 22.09.2026 12:37): `raspuns.blob()`
+// materializeaza mp3-ul INTREG, iar elementul `<audio>` cere acelasi fisier de mai
+// multe ori la rand, cu `Range` diferit (asa functioneaza pipeline-ul media). Deci
+// fisierul se citea din cache de 2-3 ori per cuvant, pe tableta copilului.
+// Aici: ultimele `MEMO_MAX` fisiere raman la indemana, dupa ADRESA lor.
+//   · plafon, nu memorie nemarginita — un cache fara plafon pe o tableta e chiar
+//     problema pe care o rezolvam, doar mutata;
+//   · cheia e ADRESA ceruta: fara ea, al doilea fisier ar primi octetii primului;
+//   · memoria se goleste dupa fiecare umplere de cache (`umple`): atunci si numai
+//     atunci continutul unei adrese se poate schimba sub noi (raspunsul venea din
+//     cache-ul VECHI, iar cel nou tocmai l-a adus).
+var MEMO_MAX = 4;
+var memoBlob = [];
+
+function golesteMemoriaDeBlob() {
+  memoBlob = [];
+}
+
+function blobulRaspunsului(raspuns, adresa) {
+  if (adresa) {
+    for (var i = 0; i < memoBlob.length; i++) {
+      if (memoBlob[i].adresa === adresa) return Promise.resolve(memoBlob[i].blob);
+    }
+  }
   return raspuns.blob().then(function (blob) {
+    if (adresa) {
+      memoBlob.push({ adresa: adresa, blob: blob });
+      while (memoBlob.length > MEMO_MAX) memoBlob.shift();
+    }
+    return blob;
+  });
+}
+
+function raspunsPartialDinCache(raspuns, antetRange, adresa) {
+  return blobulRaspunsului(raspuns, adresa).then(function (blob) {
     var total = blob.size;
     var m = /^bytes=(\d*)-(\d*)$/.exec(String(antetRange).trim());
     // un `Range` pe care nu stim sa-l taiem (mai multe intervale, unitate
@@ -227,14 +266,21 @@ self.addEventListener("fetch", function (eveniment) {
   eveniment.respondWith(
     cautaInCacheuri(cerere).then(function (raspunsDinCache) {
       if (raspunsDinCache) {
-        if (antetRange) return raspunsPartialDinCache(raspunsDinCache, antetRange);
+        // TG-030 I2: adresa ceruta e CHEIA memoriei de blob-uri (vezi
+        // `blobulRaspunsului`) — fara ea, al doilea fisier ar primi octetii primului.
+        if (antetRange) return raspunsPartialDinCache(raspunsDinCache, antetRange, cerere.url);
         return raspunsDinCache;
       }
       return fetch(cerere).then(function (raspunsRetea) {
         return raspunsRetea;
       }).catch(function () {
         // fara retea si fara cache pentru cererea asta — nimic de oferit.
-        return new Response("", { status: 504, statusText: "Tegn: offline, fara cache pentru " + cerere.url });
+        // TG-030 I3 (auditul de securitate 22.09.2026): `statusText` NU mai poarta
+        // `cerere.url`. Adresa ceruta nu spune nimic in plus celui care depaneaza
+        // (o vede deja in fila Network, langa raspuns), dar `statusText` ajunge in
+        // locuri pe care pagina nu le controleaza — jurnale de browser, rapoarte de
+        // eroare, extensii. Un raspuns de eroare poarta motivul, nu datele cererii.
+        return new Response("", { status: 504, statusText: "Tegn: offline, fara cache" });
       });
     })
   );

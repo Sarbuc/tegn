@@ -5,6 +5,21 @@
 <html lang="ro" translate="no" class="notranslate">
 <head>
   <meta charset="UTF-8">
+  <!-- TG-030 S3 (auditul de securitate Tegn, 22.09.2026): politica de continut. Pe GitHub
+       Pages nu se pot pune antete HTTP, deci un meta e singurul loc; sta imediat dupa
+       `charset`, INAINTE de orice link sau script al paginii, fiindca acopera doar ce
+       vine dupa ea.
+       `script-src` are `'unsafe-inline'` pentru SINGURUL script inline din pagina
+       (inregistrarea service worker-ului, la finalul fisierului). NU folosim un hash
+       `sha256-...`: hash-ul se calculeaza pe octetii SERVITI, iar fisierul trece prin git
+       cu `core.autocrlf=true` (LECTII.md, lectia 4) - un CRLF aparut la un checkout ar
+       invalida hash-ul, scriptul n-ar mai rula, iar tableta ar ramane fara service worker,
+       deci fara offline, tacut. `style-src` e FARA `'unsafe-inline'` (masurat: 0 atribute
+       `style=` si 0 elemente de stil in pagina si in `js/`; cele 25 de atingeri `.style.` din
+       app.js sunt CSSOM, pe care CSP nu-l blocheaza), la fel `img-src` (masurat: 0 URI
+       `data:`) - mai strict decat propunerea auditului, care le lasa pe amandoua largi.
+       Paznicul: `unelte/test_tg030_s3_csp_acopera_sursele.py`. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self'; img-src 'self'; media-src 'self'; font-src 'self'; connect-src 'self'; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="color-scheme" content="light">
   <meta name="google" content="notranslate">

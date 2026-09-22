@@ -310,6 +310,27 @@
       "T" + pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":" + pad(d.getSeconds());
   }
 
+  // TG-030 S1 (auditul de securitate 22.09.2026): `t` e SINGURA valoare din istoric
+  // care NU vine din cod - `ids` trec prin `dupaId()`, deci un id necunoscut devine
+  // text fix, dar `t` ajungea nefiltrat in HTML (`grupeazaPeZi` -> `z.zi` si `r.ora`,
+  // apoi `randeazaEcranIstoric`). Cine poate scrie `localStorage` pe originea paginii
+  // (`sarbuc.github.io` e comuna tuturor paginilor Pages ale contului - vezi M1 din
+  // acelasi audit) sau un adult cu DevTools putea pune acolo `"><b>x</b>`, iar
+  // fragmentul intra in DOM la deschiderea ecranului "Istoric".
+  // Forma se cere EXACT cum o scrie `acumIsoLocala` (ISO local, fara fus orar): orice
+  // altceva e o intrare straina si se arunca, ca si un JSON stricat.
+  var FORMA_T = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/;
+
+  // TG-030 S1, a doua plasa - pe drumul de IESIRE. Prima (FORMA_T) tine intrarile
+  // straine afara; asta face inofensiv ce ar scapa daca vreodata forma se largeste.
+  // Doua plase, dinadins: o singura plasa pe un drum de date care ajunge in
+  // `innerHTML` se dezarmeaza tacut la prima relaxare a celeilalte.
+  function escapeHtml(valoare) {
+    return String(valoare === undefined || valoare === null ? "" : valoare)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  }
+
   function citesteIstoric() {
     try {
       var brut = localStorage.getItem(CHEIE_ISTORIC);
@@ -319,7 +340,8 @@
       // JSON stricat/partial - intrarile care nu au forma asteptata se ignora,
       // in loc sa darame ecranul (aceeasi regula ca la preferinte, TG-016).
       return arr.filter(function (e) {
-        return e && typeof e === "object" && typeof e.t === "string" && Array.isArray(e.ids);
+        return e && typeof e === "object" && typeof e.t === "string" &&
+          FORMA_T.test(e.t) && Array.isArray(e.ids);
       });
     } catch (e) {
       return [];
@@ -911,7 +933,8 @@
   var confirmareIstoric = null;
 
   function htmlConfirmare(actiune, zi) {
-    var attrZi = zi ? ' data-zi="' + zi + '"' : "";
+    // TG-030 S1: `zi` vine din `t`-ul unei intrari de istoric, nu din cod.
+    var attrZi = zi ? ' data-zi="' + escapeHtml(zi) + '"' : "";
     return '<div class="istoric-confirma">' +
       '<span>' + textInterfata("istoricSigur") + '</span>' +
       '<button type="button" class="buton istoric-da-sterge" data-actiune="' + actiune + '"' + attrZi + '>' +
@@ -1019,14 +1042,16 @@
 
       grupeazaPeZi(toate).forEach(function (z) {
         h += '<div class="istoric-zi">';
-        h += '<div class="istoric-zi-antet"><span class="istoric-zi-data">' + z.zi + '</span>' +
-          '<button type="button" class="istoric-sterge-zi" data-actiune="cereStergeZi" data-zi="' + z.zi + '">' +
+        // TG-030 S1: `z.zi` si `r.ora` sunt taiate din `t`-ul intrarii (localStorage),
+        // deci nu vin din cod - trec prin `escapeHtml` inainte de `innerHTML`.
+        h += '<div class="istoric-zi-antet"><span class="istoric-zi-data">' + escapeHtml(z.zi) + '</span>' +
+          '<button type="button" class="istoric-sterge-zi" data-actiune="cereStergeZi" data-zi="' + escapeHtml(z.zi) + '">' +
           textInterfata("istoricStergeZi") + '</button></div>';
         if (confirmareIstoric && confirmareIstoric.tip === "zi" && confirmareIstoric.zi === z.zi) {
           h += htmlConfirmare("confirmaStergeZi", z.zi);
         }
         z.randuri.forEach(function (r) {
-          h += '<div class="istoric-rand"><span class="istoric-ora">' + r.ora + '</span>' +
+          h += '<div class="istoric-rand"><span class="istoric-ora">' + escapeHtml(r.ora) + '</span>' +
             htmlRandIstoric(r.entry) + '</div>';
         });
         h += '</div>';
@@ -1703,6 +1728,54 @@
   // Elementul deja "deblocat" de atingere poate primi alt `src` si canta mai departe.
   var audioComun = null;
 
+  // TG-030 S2 (auditul de securitate 22.09.2026, grad SCAZUT; reparate toate,
+  // indiferent de grad - decizia lui Cristian, 22.09.2026 12:37).
+  // Rezerva vorbita (`speechSynthesis`) foloseste motorul TTS al SISTEMULUI. Pe
+  // Android, vocile "de retea" ale Google TTS TRIMIT textul la serverul lor - adica
+  // exact cuvintele copilului ("ma doare", "baie", "trist"). Pe ecranul de istoric
+  // scrie insa "Se tine doar pe acest aparat. Nu pleaca nicaieri."
+  // (js/vocabular.js), iar un text de pe ecran e o promisiune, nu o intentie.
+  // Regula de acum: rezerva vorbeste DOAR cu o voce `localService`; daca nu exista
+  // niciuna pentru limba ecranului, TACE. Tacerea e pierderea mica (toate cele 307
+  // cuvinte au mp3 in ambele limbi - rezerva se atinge doar pe cache incomplet sau
+  // eroare de fisier); textul care pleaca de pe aparat e pierderea mare.
+  // ⚠️ Chrome incarca lista de voci ASINCRON: primul `getVoices()` poate da []. De-aia
+  // lista se cere o data devreme (vezi `DOMContentLoaded`), ca sa fie gata cand chiar
+  // e nevoie de rezerva. Daca tot e goala, raspunsul ramane "tac", nu "vorbesc cu ce e".
+  // NEMASURAT pe tableta: daca vocile RO/NB instalate acolo sunt `localService`.
+  // Pasul de masurat, pe aparat: `speechSynthesis.getVoices()`.
+  var PREFIXE_VOCE = {
+    ro: ["ro"],
+    // "nb" si "no" sunt amandoua norvegiana (bokmål / macrolimba): motoarele le
+    // raporteaza diferit, si nu vrem sa tacem pentru o eticheta de limba.
+    nb: ["nb", "no"]
+  };
+
+  function voceLocala(limba) {
+    var sinteza = window.speechSynthesis;
+    if (!sinteza || typeof sinteza.getVoices !== "function") return null;
+    var voci;
+    try { voci = sinteza.getVoices() || []; } catch (e) { return null; }
+    var prefixe = PREFIXE_VOCE[limba] || PREFIXE_VOCE.ro;
+    for (var i = 0; i < voci.length; i++) {
+      var v = voci[i];
+      if (!v || v.localService !== true || typeof v.lang !== "string") continue;
+      var lang = v.lang.toLowerCase().replace("_", "-");
+      for (var j = 0; j < prefixe.length; j++) {
+        if (lang === prefixe[j] || lang.indexOf(prefixe[j] + "-") === 0) return v;
+      }
+    }
+    return null;
+  }
+
+  function incalzesteVocile() {
+    try {
+      if (window.speechSynthesis && typeof window.speechSynthesis.getVoices === "function") {
+        window.speechSynthesis.getVoices();
+      }
+    } catch (e) {}
+  }
+
   function redaCuvant(intrare) {
     return new Promise(function (rezolva) {
       var cale = "audio/" + LIMBA + "_" + intrare.id + ".mp3";
@@ -1728,8 +1801,13 @@
         // fara mp3 pentru acest cuvant inca (ex. inainte de a rula
         // genereaza_audio_tegn.py) — rezerva: speechSynthesis.
         if (!window.speechSynthesis) { gata(); return; }
+        // TG-030 S2: fara voce LOCALA pentru limba ecranului, rezerva TACE -
+        // altfel textul copilului ar putea pleca la motorul TTS din retea.
+        var voce = voceLocala(LIMBA === "nb" ? "nb" : "ro");
+        if (!voce) { gata(); return; }
         var u = new SpeechSynthesisUtterance(eticheta(intrare));
         u.lang = LIMBA === "nb" ? "nb-NO" : "ro-RO";
+        u.voice = voce;
         u.rate = citesteViteza(); // TG-028: aceeasi viteza si pe rezerva vorbita
         u.onend = gata;
         u.onerror = gata;
@@ -1827,6 +1905,10 @@
       actualizeazaButonViteza();
     });
     document.getElementById("an").textContent = new Date().getFullYear();
+
+    // TG-030 S2: lista de voci se incarca asincron - se cere o data la pornire, ca
+    // rezerva vorbita sa aiba ce alege (voce LOCALA) cand chiar e nevoie de ea.
+    incalzesteVocile();
 
     // TG-026 problema 1: inaltimea vizibila reala se pune ÎNAINTE de prima
     // randare - altfel prima asezare se calculeaza pe `100vh` (gresit pe
